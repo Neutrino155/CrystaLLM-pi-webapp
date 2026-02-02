@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="Documentation describing the CrystaLLM API.">
+	<title>CrystaLLM - API</title>
+    <link href="https://fonts.googleapis.com/css?family=Droid+Serif|Source+Sans+Pro" rel="stylesheet">
+	<link rel="stylesheet" href="/assets/main.css">
+    <link rel="icon" type="image/png" href="/assets/materialis-icon.png"/>
+    <style>
+        pre {
+            background-color: #f2f0f0;
+            white-space:pre-line;
+            font-size: 14px;
+        }
+
+        code {
+            color: #3572dc;
+        }
+
+        h3 {
+            font-size: 17px;
+        }
+
+        table {
+            border-collapse: collapse;
+            overflow-x:auto;
+        }
+        th, td {
+            border: 1px solid #dddddd;
+            padding: 4px;
+            text-align: left;
+        }
+    </style>
+</head>
+
+<body>
+
+<div class="header">
+    <a href="https://crystallm.com" class="homelink">
+        <img src="/assets/logo.png" width="143" class="logo" alt="logo">
+    </a>
+    <div class="header-items">
+        <div class="header-right">
+            <a href="https://arxiv.org/abs/2307.04340" target="_blank"><div>Paper</div></a>
+            <a href="https://materialis.ai/contact.html"><div>Contact</div></a>
+        </div>
+    </div>
+</div>
+
+<div id="container">
+
+    <!-- begin content -->
+
+    <H1>
+        The CrystaLLM API
+    </H1>
+
+    <div id="content" style="font-size: 12px">
+
+        <p>
+            An API is available for programmatic access to CrystaLLM. The API is located at:
+        </p>
+        <pre>
+            https://api.crystallm.com/v1/generate
+        </pre>
+        <p>
+            To use the service, an <b>API key</b> is required, which can be obtained by
+            <a href="https://materialis.ai/contact.html">contacting us</a>. Please note that there is a
+            fee for using the API; see <a href="#pricing">Pricing</a> for more information.
+            Alternatively, the model code and weights can be freely downloaded and used on personal hardware.
+            The open source <a href="https://github.com/lantunes/CrystaLLM" target="_blank">code repository</a>
+            contains instructions for setting up and using CrystaLLM.
+        </p>
+
+        <h2>Requests</h2>
+
+        <p>
+            To invoke CrystaLLM through the API, make a <code>POST</code> request, sending the API key in
+            a header named <code>x-api-key</code>. Place the message payload in the body of the request.
+        </p>
+        <p>
+            For example, to request a structure for Ba<sub>2</sub>MnCr, with Z=3, in space group
+            <i>R<span style="border-top: 1px solid black; padding: 0">3</span>m</i>:
+        </p>
+        <pre style="font-size: 12px">
+            curl -X POST \
+            -H "Content-Type: application/json" \
+            -H "x-api-key: YOUR_API_KEY" \
+            -d '{"model": "small", "message": {"comp": "Ba2MnCr", "z": 3, "sg": "R-3m"}}' \
+            https://api.crystallm.com/v1/generate
+        </pre>
+
+        <p>
+            In the example above, the body of the request contains the following properties:
+        </p>
+        <ul>
+            <li><code>model</code>: the model to use; can be "small", "medium",
+                or "large" <i>(required)</i></li><br/>
+            <li><code>comp</code>: the composition; must represent a single formula unit
+                <i>(required)</i></li><br/>
+            <li><code>z</code>: the number of formula units in the unit cell <i>(required)</i></li><br/>
+            <li><code>sg</code>: the space group symbol <i>(optional)</i></li>
+        </ul>
+
+        <p>
+            As stated above, the <code>sg</code> property is optional. For example, to request a structure for
+            Ba<sub>2</sub>MnCr with Z=3, and allow the space group to be determined during generation:
+        </p>
+        <pre style="font-size: 12px">
+            curl -X POST \
+            -H "Content-Type: application/json" \
+            -H "x-api-key: YOUR_API_KEY" \
+            -d '{"model": "small", "message": {"comp": "Ba2MnCr", "z": 3}}' \
+            https://api.crystallm.com/v1/generate
+        </pre>
+
+        <h2>Model Types</h2>
+
+        <p>
+            There are currently 3 kinds of models available: "small", "medium", and
+            "large". The "small" model consists of ~25 million parameters. It has a request timeout of
+            60 seconds, and will generate a maximum of 1,200 tokens. It has difficulty generating valid CIFs that are
+            longer than 500 tokens. However, it is the fastest of the models.
+            The "medium" model consists of ~85 million parameters, and the "large" model consists
+            of ~200 million parameters. These models have a request timeout of 120 seconds, and will generate a maximum
+            of 2,000 tokens. These models are generally better than the "small" model, and can usually generate CIFs
+            successfully that contain 1,000 or more tokens. However, these models are slower than the "small"
+            model. Specify the model to be used in the <code>model</code> property of the payload.
+        </p>
+
+        <h2>Formation Energy</h2>
+
+        <p>
+            The formation energy per atom may be requested together with the generated structure. The formation energy
+            per atom is predicted with <a href="https://www.nature.com/articles/s41524-021-00650-1">ALIGNN</a>. To
+            include the ALIGNN-predicted formation energy per atom in the response, add the <code>fe</code> property
+            with a value of <code>true</code> to the message payload. For example, to request a structure for
+            NaCl, with Z=4, in space group
+            <i>Fm<span style="border-top: 1px solid black; padding: 0">3</span>m</i>, together with its
+            predicted formation energy per atom:
+        </p>
+        <pre style="font-size: 12px">
+            curl -X POST \
+            -H "Content-Type: application/json" \
+            -H "x-api-key: YOUR_API_KEY" \
+            -d '{"model":"small", "message":{"comp":"NaCl", "z":4, "sg":"Fm-3m"}, "fe":true}' \
+            https://api.crystallm.com/v1/generate
+        </pre>
+
+        <h2>Message Options</h2>
+
+        <p>
+            The <code>message</code> property of the payload contains the information that will be used to construct
+            the prompt that will be given to the model. The <code>comp</code> property contains the
+            composition of the formula unit. The <code>z</code> property contains the number of formula units in the
+            unit cell. The <code>sg</code> property specifies the space group. The <code>sg</code> property is optional,
+            whereas the <code>comp</code> and <code>z</code> properties are always required.
+        </p>
+
+        <h3>Valid values of Z</h3>
+
+        <p>
+            Any integer value > 0 is a valid value of <code>z</code>. However, note that the models generally perform
+            best when <code>z</code> is one of 1, 2, 3, 4, 6, or 8.
+        </p>
+
+        <h3>Valid values of Space group</h3>
+
+        <p>
+            The following values for the <code>sg</code> property are supported:
+        </p>
+        <table>
+            <tbody>
+                <tr>
+                    <td>P6/mmm</td><td>Imma</td><td>P4_32_12</td><td>P4_2/mnm</td>
+                    <td>Fd-3m</td><td>P3m1</td><td>P-3</td><td>P4mm</td>
+                </tr>
+                <tr>
+                    <td>P4_332</td><td>P4/nnc</td><td>P2_12_12</td><td>Pnn2</td>
+                    <td>Pbcn</td><td>P4_2/n</td><td>Cm</td><td>R3m</td>
+                </tr>
+                <tr>
+                    <td>Cmce</td><td>Aea2</td><td>P-42_1m</td><td>P-42m</td>
+                    <td>P2_13</td><td>R-3</td><td>Fm-3</td><td>Cmm2</td>
+                </tr>
+                <tr>
+                    <td>Pn-3n</td><td>P6/mcc</td><td>P3_2</td><td>P-3m1</td>
+                    <td>P3_212</td><td>I23</td><td>P-62m</td><td>P4_2nm</td>
+                </tr>
+                <tr>
+                    <td>Pma2</td><td>Pmma</td><td>I-42m</td><td>P-31c</td>
+                    <td>Pa-3</td><td>Pmmn</td><td>Pmmm</td><td>P4_2/ncm</td>
+                </tr>
+                <tr>
+                    <td>I4/mcm</td><td>I-4m2</td><td>P3_1</td><td>Pcc2</td>
+                    <td>Cmcm</td><td>I222</td><td>Fddd</td><td>P312</td>
+                </tr>
+                <tr>
+                    <td>Cccm</td><td>P6_1</td><td>F-43c</td><td>P6_322</td>
+                    <td>Pm-3</td><td>P3_121</td><td>P6_4</td><td>Ia-3d</td>
+                </tr>
+                <tr>
+                    <td>Pm-3m</td><td>P2_1/c</td><td>C222_1</td><td>Pc</td>
+                    <td>P4/n</td><td>Pba2</td><td>Ama2</td><td>Pbcm</td>
+                </tr>
+                <tr>
+                    <td>P31m</td><td>Pcca</td><td>P222</td><td>P-43n</td>
+                    <td>Pccm</td><td>P6_422</td><td>F23</td><td>P42_12</td>
+                </tr>
+                <tr>
+                    <td>C222</td><td>Pnnn</td><td>P6_3cm</td><td>P4_12_12</td>
+                    <td>P6/m</td><td>Fmm2</td><td>I4_1/a</td><td>P4/mbm</td>
+                </tr>
+                <tr>
+                    <td>Pmn2_1</td><td>P4_2bc</td><td>P4_22_12</td><td>I-43d</td>
+                    <td>I4/m</td><td>P4bm</td><td>Fdd2</td><td>P3</td></tr>
+                <tr>
+                    <td>P6_122</td><td>Pnc2</td><td>P4_2/mcm</td><td>P4_122</td>
+                    <td>Cmc2_1</td><td>P-6c2</td><td>R32</td><td>P4_1</td>
+                </tr>
+                <tr>
+                    <td>P4_232</td><td>Pnna</td><td>P422</td><td>Pban</td>
+                    <td>Cc</td><td>I4_122</td><td>P6_3/m</td><td>P6_3mc</td>
+                </tr>
+                <tr>
+                    <td>I4_1/amd</td><td>P4_2</td><td>P4/nmm</td><td>Pmna</td>
+                    <td>P4/m</td><td>Fm-3m</td><td>P4/mmm</td><td>Imm2</td>
+                </tr>
+                <tr>
+                    <td>P4/ncc</td><td>P-62c</td><td>Ima2</td><td>P6_5</td>
+                    <td>P2/c</td><td>P4/nbm</td><td>Ibam</td><td>P6_522</td>
+                </tr>
+                <tr>
+                    <td>P6_3/mmc</td><td>I4/mmm</td><td>Fmmm</td><td>P2/m</td>
+                    <td>P-4b2</td><td>I-4</td><td>C2/m</td><td>P4_2/mmc</td>
+                </tr>
+                <tr>
+                    <td>P4</td><td>Fd-3c</td><td>P4_3</td><td>P2_1/m</td>
+                    <td>I-43m</td><td>P-42c</td><td>F4_132</td><td>Pm</td>
+                </tr>
+                <tr>
+                    <td>Pccn</td><td>P-4n2</td><td>P4_132</td><td>P23</td>
+                    <td>I4cm</td><td>R3c</td><td>Amm2</td><td>Immm</td>
+                </tr>
+                <tr>
+                    <td>Iba2</td><td>I4</td><td>Fd-3</td><td>P1</td>
+                    <td>Pbam</td><td>P4_2/nbc</td><td>Im-3</td><td>P4_2/nnm</td>
+                </tr>
+                <tr>
+                    <td>Pmc2_1</td><td>P-31m</td><td>R-3m</td><td>Ia-3</td>
+                    <td>P622</td><td>F222</td><td>P2</td><td>P-1</td>
+                </tr>
+                <tr>
+                    <td>Pmm2</td><td>P-4</td><td>Aem2</td><td>P6_222</td>
+                    <td>P-3c1</td><td>P4_322</td><td>I422</td><td>Pnma</td>
+                </tr>
+                <tr>
+                    <td>P6_3</td><td>P3c1</td><td>Pn-3</td><td>P4nc</td>
+                    <td>P-6</td><td>P4/mcc</td><td>I2_12_12_1</td><td>P4_2/mbc</td>
+                </tr>
+                <tr>
+                    <td>P31c</td><td>Ccc2</td><td>P4_2/nmc</td><td>P6_3/mcm</td>
+                    <td>C2</td><td>Pbca</td><td>P-4c2</td><td>I4_1cd</td>
+                </tr>
+                <tr>
+                    <td>P2_1</td><td>P3_112</td><td>P4_2mc</td><td>Pn-3m</td>
+                    <td>C2/c</td><td>R3</td><td>P-43m</td><td>I432</td>
+                </tr>
+                <tr>
+                    <td>P222_1</td><td>I-42d</td><td>I-4c2</td><td>P6cc</td>
+                    <td>P6_2</td><td>P3_221</td><td>P321</td><td>Pca2_1</td>
+                </tr>
+                <tr>
+                    <td>I4_1/acd</td><td>I4_132</td><td>F432</td><td>Pna2_1</td>
+                    <td>Ccce</td><td>Ibca</td><td>P4/mnc</td><td>I4_1md</td>
+                </tr>
+                <tr>
+                    <td>P2_12_12_1</td><td>R-3c</td><td>I2_13</td><td>P-4m2</td>
+                    <td>Pm-3n</td><td>I4mm</td><td>F-43m</td><td>Pnnm</td>
+                </tr>
+                <tr>
+                    <td>P-42_1c</td><td>Cmmm</td><td>P6mm</td><td>P4_2cm</td>
+                    <td>P4_2/m</td><td>Im-3m</td><td>Fm-3c</td><td>I4_1</td></tr>
+                <tr>
+                    <td>P4cc</td><td>Cmme</td><td></td><td></td>
+                    <td></td><td></td><td></td><td></td>
+                </tr>
+            </tbody>
+        </table>
+
+        <h2>Responses</h2>
+
+        <p>
+            The response is a JSON object:
+        </p>
+        <pre style="white-space:break-spaces; font-size: 13px">
+{
+    "cifs": [
+        {
+            "input": {"comp": "Ba2Mn1Cr1", "sg": "R-3m", "z": 3},
+            "generated": "data_Ba6Mn3Cr3\n_symmetry...",
+            "valid": True,
+            "messages": [None],
+            "fe": 0.8906367421150208
+        }
+    ]
+}
+        </pre>
+
+        <p>
+            The response contains a single property, <code>cifs</code>, which is an array of generated CIFs. For now,
+            the array will always contain a single item. The item contains the contents of the generated CIF in the
+            <code>generated</code> property. The <code>valid</code> property states whether the generated CIF is
+            valid, and the <code>messages</code> property contains a list of messages related to the generation (e.g.
+            why the generation may have been considered invalid). Note that the <code>fe</code> property will only be
+            present if the predicted formation energy per atom was requested.
+        </p>
+
+        <p>
+            If there was an error processing the request, the API will return either a 400 or 500 HTTP response status
+            code, and the body of the response will look something like:
+        </p>
+        <pre>
+            {"error": "'model' property is missing"}
+        </pre>
+        <p>
+            depending on the nature of the error.
+        </p>
+
+        <p>
+            Note that currently the API will take anywhere from several seconds to 1 or 2 minutes to respond to a
+            single request (depending on the model type and the message options). Since the API is synchronous, clients
+            should be prepared to wait a sufficient amount of time for a response.
+        </p>
+
+        <h2 id="pricing">Pricing <sup>*</sup></h2>
+
+        <ul>
+            <li><strong>Small Model</strong>: $0.005 per request</li>
+            <li><strong>Large Model</strong>: $0.01 per request</li>
+        </ul>
+
+        <i><sup>*</sup> Prices are in USD. Fees apply to requests made on or after February 16 2024,
+            and do not apply to API keys issued before this date.</i>
+
+        <h2>Obtaining an API Key</h2>
+
+        <p>
+            If you are interested in accessing CrystaLLM through this API, please
+            <a href="https://materialis.ai/contact.html">contact us</a> for an API key.
+        </p>
+
+        <hr style="border-top: 1px"/>
+
+    </div>
+
+
+</div>
+
+<footer>
+    <p class="copyright">&copy; Materialis.AI Inc. 2023 | <a class="termslink" style="color:#000000" href="https://materialis.ai/terms.html">Terms &amp; Conditions</a></p>
+</footer>
+
+</body>
+</html>
+
