@@ -1,533 +1,1131 @@
-* {
-    -webkit-box-sizing: border-box;
-    -moz-box-sizing: border-box;
-    box-sizing: border-box;
+/*
+  PSDI-inspired styling
+  - clean, airy layout
+  - navy brand accent + subtle gradients
+  - card-based panels and improved component polish
+*/
+
+:root {
+  --psdi-navy: #0b2d6d;
+  --psdi-navy-2: #0a2456;
+  --psdi-blue: #1f4db3;
+  --psdi-teal: #2ed2c9;
+  --psdi-magenta: #b12aa8;
+
+  --bg: #f5f7fb;
+  --surface: #ffffff;
+  --text: #0b1220;
+  --muted: #4b5565;
+  --border: rgba(11, 45, 109, 0.12);
+  --shadow: 0 10px 30px rgba(11, 18, 32, 0.08);
+  --shadow-sm: 0 4px 14px rgba(11, 18, 32, 0.08);
+  --radius: 16px;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  min-height: 100%;
 }
 
 body {
-    font-family: 'Source Sans Pro', sans-serif;
-    font-size: 100%;
-    color: #000;
-    background: #fff;
-    margin: 0;
+  margin: 0;
+  font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji",
+    "Segoe UI Emoji";
+  color: var(--text);
+  background:
+    radial-gradient(1200px 700px at 15% -10%, rgba(46, 210, 201, 0.10), transparent 60%),
+    radial-gradient(1100px 700px at 85% -12%, rgba(177, 42, 168, 0.10), transparent 55%),
+    radial-gradient(900px 600px at 50% 0%, rgba(31, 77, 179, 0.08), transparent 55%),
+    var(--bg);
+  line-height: 1.5;
 }
-
-#container {
-    margin-top: 0;
-    margin-right: auto;
-    margin-left: auto;
-    width: 740px;
-    padding-top: 0.5em;
-    padding-bottom: 1em;
-    padding-left: 4em;
-    padding-right: 4em;
-}
-
-h1 {
-    font-family: 'Source Sans Pro', sans-serif;
-    font-size: 1.58em;
-    margin: 0;
-    padding-bottom: 0.8em;
-}
-
-p, li {
-    font-size: 1.4em;
-}
-
-p.credit {
-	font-size: 0.9em;
-}
-
-img {
-	display: block;
-	margin: auto;
-	max-width: 100%;
-}
-
-/* links */
 
 a {
-    color: #1484bc;
-    text-decoration: none;
+  color: inherit;
+  text-decoration: none;
 }
 
 a:hover {
-    color: #407189;
-    text-decoration: underline;
+  text-decoration: underline;
 }
 
-.alert {
-    padding: 20px;
-    margin: 5px;
-    color: #970020;
-    background-color: #ffd5de;
-    border-radius: 4px;
+code, pre {
+  font-family: "Fira Code", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New",
+    monospace;
 }
 
+/* Header */
 .header {
-  overflow: hidden;
-  background-color: #fbfbfb;
-  padding-top: 10px;
-  padding-bottom: 10px;
-  padding-left: 25px;
-  padding-right: 10px;
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 20px;
+  background: rgba(11, 45, 109, 0.92);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.10);
+  backdrop-filter: blur(10px);
 }
 
-.header::before {
-    content: ' ';
-    display: block;
-    position: absolute;
-    left: 0;
-    top: 0;
-    width: 100%;
-    height: 95px;
-    opacity: 0.04;
-    background-image: url('/assets/atoms.jpeg');
-    background-repeat: no-repeat;
-    background-position: 0 0;
-    background-color: #8c8c8c;
-    pointer-events: none;
-}
-
-
-.header .logo {
-    float: left;
+.header::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 2px;
+  background: linear-gradient(90deg, var(--psdi-teal), rgba(46, 210, 201, 0), var(--psdi-magenta));
+  opacity: 0.9;
 }
 
 .homelink {
-    padding: 0 !important;
+  display: flex;
+  align-items: center;
+  gap: 14px;
 }
 
-.header a {
-  float: left;
-  color: black;
-  text-align: center;
-  padding-top: 40px;
-  padding-right: 12px;
-  text-decoration: none;
-  font-size: 16px;
-  line-height: 25px;
-  border-radius: 4px;
+.logo {
+  display: block;
+  height: 70px;
+  width: auto;
+  filter: drop-shadow(0 6px 14px rgba(0, 0, 0, 0.22));
 }
 
-.header a div {
-    padding: 5px;
-    border-radius: 4px;
+.brand-text {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.1;
+  color: rgba(255, 255, 255, 0.95);
 }
 
-.header a div:hover {
-  background-color: #ddd;
-  color: black;
-  cursor: pointer;
+.brand-title {
+  font-size: 20px;
+  font-weight: 650;
+  letter-spacing: 0.2px;
 }
 
-.header a.active {
-  background-color: dodgerblue;
-  color: white;
+.header .homelink:hover,
+.header .homelink:hover * {
+  text-decoration: none !important;
+}
+
+.brand-subtitle {
+  margin-top: 2px;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.72);
 }
 
 .header-right {
-  float: right;
+  display: flex;
+  align-items: center;
+  gap: 10px;
 }
 
-#content {
-    padding-top: 5px;
-    padding-bottom: 5px;
+.header-right a {
+  color: rgba(255, 255, 255, 0.9);
+  font-weight: 600;
+  font-size: 13px;
+  padding: 9px 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: rgba(255, 255, 255, 0.06);
+  transition: transform 120ms ease, background 120ms ease, border-color 120ms ease;
+}
+
+.header-right a:hover {
+  text-decoration: none;
+  transform: translateY(-1px);
+  background: rgba(255, 255, 255, 0.10);
+  border-color: rgba(255, 255, 255, 0.24);
+}
+
+/* Main container */
+.container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 26px 18px 42px;
+}
+
+.hero {
+  padding: 22px 18px 10px;
+}
+
+.hero-title {
+  margin: 0;
+  font-size: clamp(26px, 3.2vw, 40px);
+  font-weight: 750;
+  letter-spacing: -0.02em;
+}
+
+.hero-subtitle {
+  margin: 10px 0 0;
+  max-width: 90ch;
+  color: var(--muted);
+  font-size: 15px;
+}
+
+.page-grid {
+  display: grid;
+  gap: 18px;
+  grid-template-columns: 1fr;
+  align-items: start;
+  margin-top: 10px;
+}
+
+@media (min-width: 980px) {
+  .page-grid {
+    grid-template-columns: 420px 1fr;
+  }
+}
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-sm);
+  padding: 18px;
+}
+
+.card--inputs {
+  position: sticky;
+  top: 84px;
+}
+
+@media (max-width: 980px) {
+  .card--inputs {
+    position: static;
+    top: auto;
+  }
+}
+
+/* Form rows */
+.form-row {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  border-radius: 14px;
+  border: 1px solid rgba(11, 45, 109, 0.08);
+  background: linear-gradient(180deg, rgba(11, 45, 109, 0.03), transparent 75%);
+}
+
+.form-row + .form-row {
+  margin-top: 12px;
+}
+
+label {
+  font-weight: 650;
+  font-size: 13px;
+  color: rgba(11, 18, 32, 0.9);
+}
+
+.help-text {
+  color: var(--muted);
+  font-size: 12.5px;
+}
+
+/* Inputs */
+.text-input {
+  width: 100%;
+  padding: 12px 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(11, 45, 109, 0.18);
+  background: #fff;
+  outline: none;
+  font-size: 14px;
+  transition: box-shadow 120ms ease, border-color 120ms ease;
+}
+
+.text-input:focus {
+  border-color: rgba(31, 77, 179, 0.65);
+  box-shadow: 0 0 0 4px rgba(31, 77, 179, 0.14);
+}
+
+/* Dropdowns (react-select; cover multiple dash versions) */
+.dropdown,
+.Select,
+.dash-dropdown {
+  width: 100%;
+}
+
+.Select-control,
+.dropdown .Select-control {
+  border-radius: 12px !important;
+  border: 1px solid rgba(11, 45, 109, 0.18) !important;
+  box-shadow: none !important;
+}
+
+.is-focused:not(.is-open) > .Select-control {
+  border-color: rgba(31, 77, 179, 0.65) !important;
+  box-shadow: 0 0 0 4px rgba(31, 77, 179, 0.14) !important;
+}
+
+/* Upload */
+.upload-box {
+  border: 1.6px dashed rgba(11, 45, 109, 0.35);
+  border-radius: 14px;
+  padding: 14px;
+  text-align: center;
+  cursor: pointer;
+  background: rgba(11, 45, 109, 0.03);
+  transition: transform 120ms ease, background 120ms ease, border-color 120ms ease;
+}
+
+.upload-box:hover {
+  transform: translateY(-1px);
+  background: rgba(11, 45, 109, 0.10);
+  border-color: rgba(11, 45, 109, 0.45);
+}
+
+/* Buttons */
+.button-row {
+  margin-top: 14px;
 }
 
 .mtrls-button {
-  background-color: #888eba;
-  border: none;
-  color: white;
-  text-align: center;
-  text-decoration: none;
-  display: inline-block;
-  font-size: 16px;
-  border-radius: 4px;
-  margin-left: 15px;
+  width: 100%;
+  border: 0;
+  cursor: pointer;
+  padding: 12px 14px;
+  border-radius: 12px;
+  margin-top: 14px;
+  font-weight: 700;
+  letter-spacing: 0.2px;
+  color: #fff;
+  background: linear-gradient(135deg, var(--psdi-navy), var(--psdi-blue));
+  box-shadow: var(--shadow);
+  transition: transform 120ms ease, filter 120ms ease, box-shadow 120ms ease;
 }
 
 .mtrls-button:hover {
-    cursor: pointer;
+  transform: translateY(-1px);
+  filter: brightness(1.03);
+}
+
+.mtrls-button:active {
+  transform: translateY(0px);
+  filter: brightness(0.98);
+}
+
+.mtrls-button.secondary {
+  width: auto;
+  background: transparent;
+  color: var(--psdi-navy);
+  border: 1px solid rgba(11, 45, 109, 0.25);
+  box-shadow: none;
+}
+
+.mtrls-button.secondary:hover {
+  background: rgba(11, 45, 109, 0.05);
 }
 
 .mtrls-button:disabled {
-    background-color: #dddddd;
+  cursor: not-allowed;
+  transform: none !important;
+  filter: none !important;
+  opacity: 0.55;
+  box-shadow: none;
 }
 
-.button {
-  background-color: #888eba;
-  border: none;
-  color: white;
-  padding: 8px 12px;
-  text-align: center;
-  text-decoration: none;
-  display: inline-block;
-  font-size: 12px;
-  border-radius: 4px;
-}
-
-.button:hover {
-    cursor: pointer;
-}
-
-#file-upload-container {
-    width: 100%;
-    height: 60px;
-    line-height: 60px;
-    border-width: 1px;
-    border-style: dashed;
-    border-radius: 5px;
-    text-align: center;
-    margin: 10px;
-}
-
-p.copyright {
-    width: 100%;
-    color: #777777;
-    line-height: 40px;
-    font-size: 0.7em;
-    font-family: arial;
-    text-align: center;
-    bottom: 100px;
-}
-
-.termslink {
-  	color: #3377c0 !important;
-  	text-decoration: none;
-}
-
-.disclaimer {
-    font-size: 21px;
-    color: #aaa6a6;
-}
-
-#disclaimercontent {
-    display: block;
-    font-style: italic;
-    font-size: 14px;
-    width: 580px;
-    margin: auto;
-    color: #aaa6a6;
-}
-
-.error-message {
-    color: red;
-    padding-top: 10px;
-}
-
-#composition {
-    height: 25px;
-}
-
-#spacegroup-container {
-    width: 110px;
-    margin: 0;
-    display: inline-grid
-}
-
-#spacegroup-optional {
-    color: #afabab;
-    font-size: 11px;
-    padding-left: 11px;
-}
-
-#spacegroup {
-    width: 110px;
-    display: inline-block;
-    vertical-align: middle;
-    font-size: 14px;
-}
-
-#formula-unit-container {
-    width: 50px;
-    margin: 0;
-    display: inline-grid;
-}
-
-#formula-unit-optional {
-    color: #afabab;
-    font-size: 11px;
-    padding-left: 4px;
-}
-
-#formula-unit {
-    width: 50px;
-    display: inline-block;
-    vertical-align: middle;
-    font-size: 14px;
-}
-
-.tooltip.show {
-    opacity: 1;
-}
-
-.tooltip-inner {
-    background-color: white;
-    color: #afabab;
-    padding: 3px;
-    font-size: 12px;
-    font-style: italic;
-}
-
-#cell-parameters {
-    font-size: 12px;
-    font-family: monospace;
-    padding-top: 15px;
-    padding-bottom: 5px;
-    padding-left: 30px;
-}
-
-#model-version {
-    margin-left: auto;
-    margin-right: auto;
-    width: 200px;
-    padding-bottom: 10px;
-    text-align: center;
-    font-size: 14px;
-    color: rgb(150 147 147);
-}
-
-.Select-input {
-    height: 25px !important;
-}
-
-.Select-control {
-    height: 25px !important;
-}
-
-.Select-placeholder {
-    line-height: 25px !important;
-}
-
-.Select--single>.Select-control .Select-value {
-    line-height: 25px !important;
-}
-
-.returned-cif {
-    color: gray;
-    padding-left: 25px;
-}
-
-.returned-cif-details {
-    padding-top: 10px;
-}
-
-.cif-summary {
-    font-size: 0.9em;
-}
-
-.advanced-details {
-    color: #afabab;
-}
-
-.advanced-options {
-    font-size: 0.9em;
-}
-
-#model-size {
-    width: 260px;
-    font-size: 0.85em;
-    display: inline-grid;
-}
-
-.model-size-label {
-    font-size: 0.85em;
-}
-
-.dropdown-item {
-    cursor: pointer;
-    font-size: .875rem;
-}
-
-/* custom Dash app loader */
-._dash-loading {
-    transform: rotateZ(45deg);
-    perspective: 1000px;
-    border-radius: 50%;
-    width: 48px;
-    height: 48px;
-    color: #fff;
-}
-
-._dash-loading:before,
-._dash-loading:after {
-    content: '';
-    display: block;
-    position: absolute;
-    top: 0;
-    left: 50px;
-    width: inherit;
-    height: inherit;
-    border-radius: 50%;
-    color: rgb(189, 202, 245);
-    transform: rotateX(70deg);
-    animation: .1s spin linear infinite;
-}
-
-._dash-loading:after {
-    color: #4c81b0;
-    transform: rotateY(70deg);
-    animation-delay: .1s;
-}
-
-@keyframes rotate {
-    0% {
-        transform: translate(-50%, -50%) rotateZ(0deg);
-    }
-    100% {
-        transform: translate(-50%, -50%) rotateZ(360deg);
-    }
-}
-
-@keyframes rotateccw {
-    0% {
-        transform: translate(-50%, -50%) rotate(0deg);
-    }
-    100% {
-        transform: translate(-50%, -50%) rotate(-360deg);
-    }
-}
-
-@keyframes spin {
-    0%,
-    100% {
-        box-shadow: .2em 0px 0 0px currentcolor;
-    }
-    12% {
-        box-shadow: .2em .2em 0 0 currentcolor;
-    }
-    25% {
-        box-shadow: 0 .2em 0 0px currentcolor;
-    }
-    37% {
-        box-shadow: -.2em .2em 0 0 currentcolor;
-    }
-    50% {
-        box-shadow: -.2em 0 0 0 currentcolor;
-    }
-    62% {
-        box-shadow: -.2em -.2em 0 0 currentcolor;
-    }
-    75% {
-        box-shadow: 0px -.2em 0 0 currentcolor;
-    }
-    87% {
-        box-shadow: .2em -.2em 0 0 currentcolor;
-    }
-}
-/* end custom Dash app loader */
-
-/* progress bar */
-#message-container {
-    position: relative;
-}
-
-#progress {
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background-color: white;
-    z-index: 10;
-    display: none;
-}
-
-#hidden-div {
-    display: none;
-}
-
-@keyframes animate-stripes {
-    0% {
-        background-position: 0 0;
-    }
-
-    100% {
-        background-position: 60px 0;
-    }
+/* Progress bar */
+.progress-bar-container {
+  margin-top: 14px;
+  height: 12px;
+  border-radius: 999px;
+  overflow: hidden;
+  border: 1px solid rgba(11, 45, 109, 0.18);
+  background: rgba(11, 45, 109, 0.10);
 }
 
 .progress-bar {
-    background-color: #e5e4e4;
-    height: 15px;
-    margin-top: 13px;
-    margin-bottom: 13px;
-    margin-left: 25px;
-    margin-right: 130px;
-    border-radius: 5px;
-}
-
-.stripes {
-    background-image: linear-gradient(
-        45deg,
-        rgba(255,255,255,.15) 25%,
-        transparent 25%,
-        transparent 50%,
-        rgba(255,255,255,.15) 50%,
-        rgba(255,255,255,.15) 75%,
-        transparent 75%,
-        transparent
-    );
-    background-size: 1rem 1rem;
-}
-
-.stripes.animated {
-    animation: animate-stripes 0.6s linear infinite;
-}
-
-.stripes.animated.slower {
-    animation-duration: 2.85s;
-}
-
-.stripes.reverse {
-    animation-direction: reverse;
+  position: relative;
+  height: 100%;
+  overflow: hidden;
 }
 
 .progress-bar-inner {
-    display: block;
-    height: 15px;
-    width: 0%;
-    background-color: #a9aec9;
-    border-radius: 3px;
-    box-shadow: 0 1px 0 rgba(255, 255, 255, .5) inset;
-    position: relative;
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -40%;
+  width: 40%;
+  border-radius: 999px;
+  /* base color */
+  background-image: linear-gradient(90deg, var(--psdi-teal), var(--psdi-blue), var(--psdi-magenta));
+  /* indeterminate slide */
+  animation: indeterminate-slide 1.35s ease-in-out infinite;
 }
-/* end progress bar */
 
-@media (max-width: 800px) {
-    .header {
-        width: 100%;
-    }
-    #container {
-        margin: 0;
-        width: 100%;
-        padding: 2em;
-    }
-    #disclaimercontent {
-        width: 100%;
-        padding-left: 2em;
-        padding-right: 2em;
-    }
-    #generated-structure-container > div:first-child {
-        width: 300px !important;
-        height: 300px !important;
-    }
-    .advanced-details {
-        padding-top: 5px;
-        color: #afabab;
-    }
-    #model-size {
-        width: 230px;
-        font-size: 0.85em;
-        display: inline-grid;
-        padding-bottom: 5px;
-    }
-    .progress-bar {
-        width: 100%;
-        margin-top: 13px;
-        margin-bottom: 13px;
-        margin-left: 0;
-        margin-right: 0;
-    }
+/* Add a subtle moving stripe overlay without wiping out the base gradient */
+.progress-bar-inner.stripes {
+  background-image:
+    linear-gradient(90deg, var(--psdi-teal), var(--psdi-blue), var(--psdi-magenta)),
+    linear-gradient(
+      45deg,
+      rgba(255, 255, 255, 0.30) 25%,
+      transparent 25%,
+      transparent 50%,
+      rgba(255, 255, 255, 0.30) 50%,
+      rgba(255, 255, 255, 0.30) 75%,
+      transparent 75%,
+      transparent
+    );
+  background-size: 100% 100%, 26px 26px;
+  background-position: 0 0, 0 0;
+}
+
+@keyframes indeterminate-slide {
+  0%   { transform: translateX(0); }
+  50%  { transform: translateX(155%); }
+  100% { transform: translateX(320%); }
+}
+
+
+/* Progress bar secondary animation (stripes) */
+.progress-bar-inner.animated {
+  animation: indeterminate-slide 1.35s ease-in-out infinite, move-stripes 1.15s linear infinite;
+}
+
+@keyframes move-stripes {
+  from { background-position: 0 0, 0 0; }
+  to { background-position: 0 0, 26px 0; }
+}
+
+
+/* Show the progress bar while Dash is computing the generation callback */
+#loading-sentinel[data-dash-is-loading="true"] ~ #progress {
+  display: block !important;
+}
+
+#loading-sentinel[data-dash-is-loading="true"] ~ #progress .progress-bar-container {
+  box-shadow: 0 10px 22px rgba(11, 18, 32, 0.10);
+}
+
+/* Outputs */
+.result-container {
+  min-height: 40px;
+}
+
+.cell-params {
+  margin-top: 10px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(11, 45, 109, 0.10);
+  background: rgba(11, 45, 109, 0.03);
+  color: rgba(11, 18, 32, 0.92);
+  font-size: 13px;
+}
+
+/* Panel header (shared) */
+.panel-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 0 0 10px;
+}
+
+.panel-title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 750;
+  letter-spacing: -0.01em;
+  color: rgba(11, 18, 32, 0.92);
+}
+
+.panel-meta {
+  font-size: 12.5px;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* PXRD preview */
+.xrd-viewer-container {
+  width: 100%;
+  margin-bottom: 14px;
+  padding: 14px;
+  border-radius: 14px;
+  border: 1px solid rgba(11, 45, 109, 0.12);
+  background:
+    radial-gradient(900px 420px at 15% 0%, rgba(46, 210, 201, 0.10), transparent 60%),
+    radial-gradient(900px 420px at 90% 0%, rgba(177, 42, 168, 0.08), transparent 60%),
+    rgba(11, 45, 109, 0.02);
+  box-shadow: var(--shadow-sm);
+}
+
+.xrd-graph {
+  margin-top: 6px;
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.xrd-viewer-container .modebar {
+  background: transparent !important;
+  border-radius: 10px;
+  padding: 4px 6px !important;
+}
+
+.xrd-viewer-container .modebar-btn {
+  border-radius: 8px !important;
+}
+
+/* Structure viewer (Crystal Toolkit) */
+.viewer-container {
+  margin-top: 14px;
+  padding: 14px;
+  border-radius: 14px;
+  border: 1px solid rgba(11, 45, 109, 0.12);
+  background:
+    radial-gradient(900px 420px at 15% 0%, rgba(31, 77, 179, 0.08), transparent 62%),
+    rgba(11, 45, 109, 0.02);
+  box-shadow: var(--shadow-sm);
+}
+
+.ctk-viewer-frame {
+  border-radius: 14px;
+  overflow: hidden;
+  border: 0;
+  background: transparent;
+  box-shadow: 0;
+}
+
+.ctk-viewer-frame canvas {
+  border-radius: 14px;
+}
+
+/* keep the viewer responsive */
+.ctk-viewer-frame {
+  min-height: 200px;
+}
+
+/* If Crystal Toolkit is using Material-UI, soften the chrome a bit */
+.ctk-viewer-frame .MuiPaper-root {
+  border-radius: 14px !important;
+}
+
+.ctk-viewer-frame .MuiButton-root,
+.ctk-viewer-frame .MuiIconButton-root {
+  border-radius: 999px !important;
+  text-transform: none !important;
+  font-weight: 650 !important;
+}
+
+/* Crystal Toolkit / VTK.js chrome refinements */
+.ctk-viewer-frame button,
+.ctk-viewer-frame [class*="vtk"] button {
+  background: rgba(255, 255, 255, 0.86) !important;
+  border: 1px solid rgba(11, 45, 109, 0.18) !important;
+  border-radius: 12px !important;
+  box-shadow: 0 10px 22px rgba(11, 18, 32, 0.12) !important;
+  backdrop-filter: blur(6px);
+  transition: transform 120ms ease, background 120ms ease, box-shadow 120ms ease;
+  padding: 5px;
+}
+
+.ctk-viewer-frame button:hover,
+.ctk-viewer-frame [class*="vtk"] button:hover {
+  transform: translateY(-1px);
+  background: rgba(255, 255, 255, 0.94) !important;
+  box-shadow: 0 12px 26px rgba(11, 18, 32, 0.14) !important;
+}
+
+.ctk-viewer-frame button:active,
+.ctk-viewer-frame [class*="vtk"] button:active {
+  transform: translateY(0px);
+  box-shadow: 0 8px 18px rgba(11, 18, 32, 0.12) !important;
+}
+
+.ctk-viewer-frame button svg,
+.ctk-viewer-frame button img {
+  opacity: 0.92;
+}
+
+/* CTK settings menus are Material-UI popovers rendered in a portal (outside .ctk-viewer-frame). */
+.MuiPopover-paper,
+.MuiMenu-paper,
+.MuiDialog-paper,
+.MuiPaper-root {
+  border-radius: 14px !important;
+  border: 1px solid rgba(11, 45, 109, 0.14) !important;
+  box-shadow: 0 18px 42px rgba(11, 18, 32, 0.14) !important;
+}
+
+.MuiMenuItem-root {
+  font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial !important;
+  font-size: 13.5px !important;
+}
+
+.MuiMenuItem-root:hover {
+  background: rgba(11, 45, 109, 0.06) !important;
+}
+
+/* Element legend styling (class names vary across CTK versions, so we match a few) */
+.ctk-viewer-frame .legend,
+.ctk-viewer-frame .ctk-legend,
+.ctk-viewer-frame .element-legend,
+.ctk-viewer-frame [class*="legend"],
+.ctk-viewer-frame [id*="legend"] {
+  background: rgba(255, 255, 255, 0.90);
+  border: 1px solid rgba(11, 45, 109, 0.16);
+  border-radius: 12px;
+  padding: 6px 8px;
+  box-shadow: 0 10px 22px rgba(11, 18, 32, 0.12);
+}
+
+#structure-viewer {
+  width: 100%;
+}
+
+.download-row {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  margin-top: 14px;
+}
+
+.returned-cif-details {
+  margin-top: 14px;
+  border-radius: 14px;
+  border: 1px solid rgba(11, 45, 109, 0.12);
+  background: rgba(11, 45, 109, 0.02);
+  overflow: hidden;
+}
+
+.cif-summary {
+  cursor: pointer;
+  padding: 12px 12px;
+  font-weight: 700;
+  color: var(--psdi-navy);
+  list-style: none;
+}
+
+.returned-cif {
+  margin: 0;
+  padding: 12px;
+  max-height: 380px;
+  overflow: auto;
+  font-size: 12.5px;
+  background: rgba(255, 255, 255, 0.75);
+  border-top: 1px solid rgba(11, 45, 109, 0.12);
+}
+
+/* Alert-like messages */
+.ok-message,
+.warn-message,
+.error-message {
+  display: inline-block;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid;
+  font-weight: 650;
+  font-size: 13px;
+}
+
+.ok-message {
+  color: #0b3d2e;
+  background: rgba(46, 210, 201, 0.18);
+  border-color: rgba(46, 210, 201, 0.35);
+}
+
+.warn-message {
+  color: #5a3a00;
+  background: rgba(255, 179, 0, 0.18);
+  border-color: rgba(255, 179, 0, 0.35);
+}
+
+.error-message {
+  color: #7a1020;
+  background: rgba(255, 76, 120, 0.14);
+  border-color: rgba(255, 76, 120, 0.30);
+}
+
+/* Footer */
+/* -----------------------------
+   Footer (PSDI partnership - simplified)
+   ----------------------------- */
+
+footer.psdi-footer {
+  padding: 0;
+  margin-top: 26px;
+  background: linear-gradient(180deg, rgba(11, 45, 109, 0.98), rgba(10, 36, 86, 0.98));
+  border-top: 1px solid rgba(255, 255, 255, 0.10);
+  position: relative;
+}
+
+footer.psdi-footer::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 2px;
+  background: linear-gradient(
+    90deg,
+    var(--psdi-teal),
+    rgba(46, 210, 201, 0),
+    var(--psdi-magenta)
+  );
+  opacity: 0.9;
+}
+
+.psdi-footer-inner {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 22px 18px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.psdi-footer-left {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  color: rgba(255, 255, 255, 0.92);
+}
+
+.psdi-footer-kicker {
+  font-size: 12px;
+  letter-spacing: 0.10em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.64);
+}
+
+.psdi-footer-text {
+  font-size: 14.5px;
+  font-weight: 700;
+  letter-spacing: 0.1px;
+}
+
+.psdi-footer-acronym {
+  color: rgba(255, 255, 255, 0.84);
+  font-weight: 750;
+}
+
+.psdi-footer-copy {
+  font-size: 12.5px;
+  color: rgba(255, 255, 255, 0.72);
+}
+
+.psdi-footer-logo-link {
+  display: inline-flex;
+  align-items: center;
+  text-decoration: none;
+}
+
+.psdi-footer-logo {
+  height: 54px;
+  width: auto;
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  box-shadow: 0 14px 30px rgba(0, 0, 0, 0.18);
+  transition: transform 120ms ease, background 120ms ease, border-color 120ms ease;
+}
+
+.psdi-footer-logo:hover {
+  transform: translateY(-1px);
+  background: rgba(255, 255, 255, 0.09);
+  border-color: rgba(255, 255, 255, 0.22);
+}
+
+@media (max-width: 720px) {
+  .psdi-footer-inner {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}
+/* -----------------------------
+   CTK viewer: make toolbar + legend closer to the "classic" look (like your 3rd screenshot)
+   ----------------------------- */
+
+/* Try to catch the floating VTK/CTK toolbar container across versions */
+.ctk-viewer-frame .vtkjs-control-panel,
+.ctk-viewer-frame .vtkjs-toolbar,
+.ctk-viewer-frame [class*="vtkjs"][class*="control"],
+.ctk-viewer-frame [class*="vtk"][class*="control"],
+.ctk-viewer-frame [class*="vtk"][class*="toolbar"],
+.ctk-viewer-frame [class*="Toolbar"],
+.ctk-viewer-frame [class*="toolBar"] {
+  background: rgba(121, 128, 172, 0.92) !important;
+  border: 1px solid rgba(255, 255, 255, 0.18) !important;
+  border-radius: 12px !important;
+  padding: 6px 6px !important;
+  box-shadow: 0 16px 34px rgba(11, 18, 32, 0.18) !important;
+  backdrop-filter: blur(6px);
+}
+
+.ctk-viewer-frame .mpc-scene .mpc-button-bar {
+  position: absolute;
+  right: 0;
+  z-index: 3;
+  padding: 10px;
+}
+
+/* Make the buttons look like a single grouped control strip */
+.ctk-viewer-frame .vtkjs-control-panel button,
+.ctk-viewer-frame .vtkjs-toolbar button,
+.ctk-viewer-frame [class*="vtk"][class*="toolbar"] button,
+.ctk-viewer-frame [class*="vtk"][class*="control"] button {
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  border-radius: 10px !important;
+  margin: 0 !important;
+}
+
+.ctk-viewer-frame .vtkjs-control-panel button:hover,
+.ctk-viewer-frame .vtkjs-toolbar button:hover,
+.ctk-viewer-frame [class*="vtk"][class*="toolbar"] button:hover,
+.ctk-viewer-frame [class*="vtk"][class*="control"] button:hover {
+  background: rgba(255, 255, 255, 0.12) !important;
+  transform: none !important;
+}
+
+/* Icons white-ish */
+.ctk-viewer-frame .vtkjs-control-panel button svg,
+.ctk-viewer-frame .vtkjs-toolbar button svg,
+.ctk-viewer-frame [class*="vtk"][class*="toolbar"] button svg,
+.ctk-viewer-frame [class*="vtk"][class*="control"] button svg {
+  color: rgba(255, 255, 255, 0.92) !important;
+  fill: rgba(255, 255, 255, 0.92) !important;
+  opacity: 0.95 !important;
+}
+
+/* Element legend: remove the big white pill and keep the colored element boxes */
+.ctk-viewer-frame .legend,
+.ctk-viewer-frame .ctk-legend,
+.ctk-viewer-frame .element-legend,
+.ctk-viewer-frame [class*="legend"],
+.ctk-viewer-frame [id*="legend"] {
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+}
+
+/* Make legend "chips" look like small squared boxes */
+.ctk-viewer-frame .legend * ,
+.ctk-viewer-frame .ctk-legend * ,
+.ctk-viewer-frame .element-legend * ,
+.ctk-viewer-frame [class*="legend"] * ,
+.ctk-viewer-frame [id*="legend"] * {
+  border-radius: 8px !important;
+}
+
+
+/* =============================
+   Overrides (requested tweaks)
+   ============================= */
+
+/* Progress bar: determinate fill (0 -> 100%).
+   Width is driven by the clientside store via inline style on #progress-bar-inner. */
+.progress-bar-inner {
+  left: 0 !important;
+  transform: none !important;
+  animation: none !important;
+  width: 0%;
+  background-image: linear-gradient(90deg, var(--psdi-teal), var(--psdi-blue), var(--psdi-magenta)) !important;
+  transition: width 180ms linear;
+}
+
+/* Structure viewer: make the canvas area use the available width and stay centered */
+.ctk-viewer-frame {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: stretch;
+}
+
+.ctk-viewer-frame > * {
+  width: 100% !important;
+  max-width: 100% !important;
+}
+
+/* Sleeker toolbar (covers Material-UI fabs used by many CTK versions) */
+.ctk-viewer-frame .MuiFab-root,
+.ctk-viewer-frame .MuiIconButton-root.MuiFab-root,
+.ctk-viewer-frame [class*="MuiFab"] {
+  width: 36px !important;
+  height: 36px !important;
+  min-height: 36px !important;
+  border-radius: 12px !important;
+  padding: 0 !important;
+  margin: 0 !important;
+
+  background: rgba(11, 45, 109, 0.62) !important;
+  color: rgba(255, 255, 255, 0.96) !important;
+  border: 1px solid rgba(255, 255, 255, 0.20) !important;
+  box-shadow: 0 12px 28px rgba(11, 18, 32, 0.18) !important;
+  backdrop-filter: blur(6px);
+}
+
+.ctk-viewer-frame .MuiFab-root:hover,
+.ctk-viewer-frame [class*="MuiFab"]:hover {
+  background: rgba(11, 45, 109, 0.72) !important;
+  box-shadow: 0 14px 32px rgba(11, 18, 32, 0.20) !important;
+  transform: none !important;
+}
+
+.ctk-viewer-frame .MuiFab-root svg,
+.ctk-viewer-frame .MuiFab-root img {
+  width: 18px !important;
+  height: 18px !important;
+  opacity: 0.95 !important;
+}
+
+/* If the toolbar has a wrapping container, make it look like a single strip */
+.ctk-viewer-frame .MuiSpeedDial-actions,
+.ctk-viewer-frame [class*="SpeedDial"],
+.ctk-viewer-frame [class*="toolbar-container"],
+.ctk-viewer-frame [class*="ToolbarContainer"] {
+  background: rgba(11, 45, 109, 0.62) !important;
+  border: 5px solid rgba(255, 255, 255, 0.20) !important;
+  border-radius: 14px !important;
+  padding: 8px 6px !important;
+  box-shadow: 0 16px 38px rgba(11, 18, 32, 0.18) !important;
+  backdrop-filter: blur(6px);
+}
+
+/* Element legend: small, squared "chips" without a big white container */
+.ctk-viewer-frame .MuiChip-root,
+.ctk-viewer-frame [class*="Chip"] {
+  border-radius: 10px !important;
+  height: 30px !important;
+  font-weight: 750 !important;
+  letter-spacing: 0.1px;
+  border: 0 !important;
+  box-shadow: 0 10px 22px rgba(11, 18, 32, 0.14) !important;
+}
+
+span.icon {
+  padding: 10px;
+}
+
+.ctk-viewer-frame .MuiChip-label {
+  padding-left: 10px !important;
+  padding-right: 10px !important;
+}
+
+/* If CTK renders legend text blocks, keep them tight and readable */
+.ctk-viewer-frame .legend,
+.ctk-viewer-frame .ctk-legend,
+.ctk-viewer-frame .element-legend,
+.ctk-viewer-frame [class*="legend"],
+.ctk-viewer-frame [id*="legend"] {
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+}
+
+/* =============================
+   CTK overlays: keep legend + orientation axis inside the viewer
+   (avoid overriding CTK internal layout, which can break rendering)
+   ============================= */
+
+.ctk-viewer-frame {
+  position: relative !important;
+  overflow: hidden !important; /* prevents overlays from spilling over the page */
+  display: block !important;   /* undo earlier flex overrides */
+}
+
+/* Let CTK manage heights; just ensure the canvas can stretch horizontally */
+.ctk-viewer-frame canvas {
+  display: block;
+  width: 100% !important;
+}
+
+/* Pin legend inside bottom-right (only if CTK uses this container id) */
+#CTstructure-viewer_legend_container {
+  position: absolute !important;
+  right: 12px !important;
+  bottom: 12px !important;
+  z-index: 30 !important;
+  display: inline-flex !important;
+  gap: 6px !important;
+  align-items: center !important;
+}
+
+/* Pin the orientation marker inside bottom-left (common vtk.js classnames) */
+.ctk-viewer-frame .vtkjs-orientation-marker,
+.ctk-viewer-frame .vtkjs-widget-orientation-marker,
+.ctk-viewer-frame [class*="orientation-marker"],
+.ctk-viewer-frame [class*="OrientationMarker"],
+.ctk-viewer-frame [class*="OrientationMarkerWidget"] {
+  position: absolute !important;
+  left: 12px !important;
+  bottom: 12px !important;
+  z-index: 30 !important;
+}
+
+.psdi-footer-mark{
+  height: 70px;
+  width: 180px;              /* adjust as needed */
+  background: rgba(255,255,255,0.95);
+
+  -webkit-mask: url("/assets/psdi-logo.svg") no-repeat center / contain;
+  mask: url("/assets/psdi-logo.svg") no-repeat center / contain;
+}
+
+/* ---------- Empty state (right panel placeholder) ---------- */
+.empty-state{
+  border: 1px dashed rgba(11, 45, 109, 0.18);
+  border-radius: 16px;
+  padding: 18px;
+  background:
+    radial-gradient(700px 300px at 0% 0%, rgba(46,210,201,0.12), transparent 60%),
+    radial-gradient(700px 300px at 100% 0%, rgba(177,42,168,0.10), transparent 60%),
+    rgba(255,255,255,0.55);
+  box-shadow: 0 10px 24px rgba(11,18,32,0.06);
+}
+
+.empty-state__inner{
+  display: grid;
+  grid-template-columns: 1.1fr 0.9fr;
+  gap: 18px;
+  align-items: stretch;
+}
+
+@media (max-width: 980px){
+  .empty-state__inner{ grid-template-columns: 1fr; }
+}
+
+.empty-state__badge{
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 10px;
+  border-radius: 999px;
+  font-weight: 700;
+  font-size: 12px;
+  color: rgba(11,45,109,0.95);
+  background: rgba(11,45,109,0.08);
+  border: 1px solid rgba(11,45,109,0.14);
+}
+
+.empty-state__title{
+  margin: 10px 0 6px;
+  font-size: 18px;
+  letter-spacing: -0.01em;
+}
+
+.empty-state__subtitle{
+  margin: 0 0 14px;
+  color: rgba(11,18,32,0.70);
+  font-size: 13.5px;
+}
+
+.empty-state__steps{
+  border-radius: 14px;
+  border: 1px solid rgba(11,45,109,0.12);
+  background: rgba(255,255,255,0.65);
+  overflow: hidden;
+}
+
+.empty-step{
+  display: grid;
+  grid-template-columns: 28px 1fr;
+  gap: 10px;
+  padding: 12px;
+}
+
+.empty-step__num{
+  height: 24px;
+  width: 24px;
+  border-radius: 8px;
+  display: grid;
+  place-items: center;
+  font-weight: 800;
+  color: #fff;
+  background: linear-gradient(135deg, #0b2d6d, #1f4db3);
+}
+
+.empty-step__label{
+  font-weight: 750;
+  font-size: 13px;
+}
+
+.empty-step__hint{
+  font-size: 12.5px;
+  color: rgba(11,18,32,0.65);
+  margin-top: 2px;
+}
+
+.empty-state__divider{
+  height: 1px;
+  background: rgba(11,45,109,0.10);
+}
+
+.empty-state__examples{
+  margin-top: 12px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.empty-state__examples-label{
+  font-size: 12.5px;
+  color: rgba(11,18,32,0.65);
+  margin-right: 2px;
+}
+
+.empty-state__chip{
+  padding: 6px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(11,45,109,0.14);
+  background: rgba(255,255,255,0.75);
+  font-size: 12.5px;
+}
+
+/* Mock cards */
+.empty-state__mock{
+  display: grid;
+  gap: 12px;
+  align-content: start;
+}
+
+.mock-card{
+  border-radius: 14px;
+  border: 1px solid rgba(11,45,109,0.12);
+  background: rgba(255,255,255,0.55);
+  overflow: hidden;
+}
+
+.mock-card__title{
+  padding: 10px 12px;
+  font-weight: 750;
+  font-size: 12.5px;
+  color: rgba(11,18,32,0.78);
+  border-bottom: 1px solid rgba(11,45,109,0.10);
+  background: rgba(11,45,109,0.04);
+}
+
+.mock-plot{
+  height: 120px;
+  background:
+    linear-gradient(180deg, rgba(31,77,179,0.10), transparent 70%),
+    repeating-linear-gradient(90deg, rgba(11,45,109,0.08) 0px, rgba(11,45,109,0.08) 1px, transparent 1px, transparent 32px),
+    repeating-linear-gradient(0deg, rgba(11,45,109,0.06) 0px, rgba(11,45,109,0.06) 1px, transparent 1px, transparent 24px);
+}
+
+.mock-viewer{
+  height: 160px;
+  background:
+    radial-gradient(240px 120px at 60% 40%, rgba(46,210,201,0.16), transparent 60%),
+    radial-gradient(240px 120px at 40% 60%, rgba(177,42,168,0.12), transparent 60%),
+    rgba(255,255,255,0.35);
+}
+
+/* Wrap long lines inside Technical details (preformatted) */
+.returned-cif-details .returned-cif {
+  white-space: pre-wrap;      /* keep newlines but allow wrapping */
+  overflow-wrap: anywhere;    /* break very long tokens/paths */
+  word-break: break-word;     /* fallback for older browsers */
 }
