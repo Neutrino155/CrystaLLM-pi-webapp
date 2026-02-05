@@ -7,6 +7,7 @@ import uuid
 from datetime import datetime
 from pathlib import Path
 import ast
+import warnings
 
 import dash
 from dash import dcc, html
@@ -25,7 +26,7 @@ from model_client import get_model_client, ModelClientError
 # -----------------------------
 # Logging
 # -----------------------------
-logger = logging.getLogger("CrystaLLM-pi-webapp")
+logger = logging.getLogger("CrystaLLM-pi")
 logger.setLevel(logging.INFO)
 
 LOG_PATH = os.getenv("APP_LOG_PATH", "app_logs.log")
@@ -165,6 +166,14 @@ def pxrd_preview_from_bytes(raw: bytes, max_points: int = 4000) -> dict:
         "i_max": float(imax),
     }
 
+def make_pxrd_upload():
+    return dcc.Upload(
+        id="pxrd-upload",
+        children=html.Div(["Drag & drop a .csv here, or ", html.A("browse")]),
+        className="upload-box",
+        multiple=False,
+    )
+
 # -----------------------------
 # Chemistry helpers
 # -----------------------------
@@ -251,7 +260,7 @@ def _extract_last_exception_line(err_text: str) -> str:
 
 def format_model_client_error(e: Exception):
     """
-    Returns: (user_facing_component, technical_details_str)
+    Returns: (user_facing_component, technical_details_dict)
     """
     raw = str(e)
     payload = getattr(e, "payload", None)
@@ -271,7 +280,6 @@ def format_model_client_error(e: Exception):
         job_id = job.get("job_id")
         cmd = job.get("command")
         err_text = job.get("error") or raw
-        # Try to extract model name from stdout section if present
         if isinstance(err_text, str) and "Stdout:" in err_text:
             stdout_hint = err_text.split("Stdout:", 1)[1].strip()
     else:
@@ -280,23 +288,30 @@ def format_model_client_error(e: Exception):
     last_line = _extract_last_exception_line(err_text or "")
 
     # Map common failure patterns -> friendlier copy
-    friendly_cause = None
-    if "Column 'Generated CIF' not found" in (err_text or "") or "Generated CIF" in (last_line or ""):
+    tips = [
+        "Try again (sampling can be stochastic).",
+        "If you set a space group, try removing it or choosing a different one.",
+        "If you uploaded PXRD, try generating once without it (or with fewer/cleaner peaks).",
+    ]
+
+    if ("FileNotFoundError" in (err_text or "")) or ("No such file or directory" in (err_text or "")):
         friendly_cause = (
-            "The backend did not produce any valid CIF output for this request "
-            "(generation returned zero results)."
+            "The backend couldn’t read the PXRD CSV file (it wasn’t found inside the backend container). "
+            "Please re-upload the PXRD CSV and try again."
+        )
+        tips = [
+            "Re-upload the PXRD CSV (even if it looks uploaded) and try again.",
+            "Try generating once without PXRD to confirm the model works.",
+        ] + tips
+    elif "Column 'Generated CIF' not found" in (err_text or "") or "Generated CIF" in (last_line or ""):
+        friendly_cause = (
+            "The backend did not produce any valid CIF output for this request (generation returned zero results)."
         )
     elif "Failed after" in (err_text or ""):
         friendly_cause = "The backend failed to generate a valid structure after several attempts."
     else:
         friendly_cause = "The backend job failed while generating the structure."
 
-    # Build user-facing component
-    tips = [
-        "Try again (sampling can be stochastic).",
-        "If you set a space group, try removing it or choosing a different one.",
-        "If you uploaded PXRD, try generating once without it (or with fewer/cleaner peaks).",
-    ]
     support_line = f"Job ID: {job_id}" if job_id else "Job ID unavailable"
 
     user_component = html.Div(
@@ -324,7 +339,12 @@ def format_model_client_error(e: Exception):
                             ]
                         ),
                         className="returned-cif",
-                        style={"maxHeight": "320px"},
+                        style={
+                            "maxHeight": "320px",
+                            "whiteSpace": "pre-wrap",
+                            "overflowWrap": "anywhere",
+                            "wordBreak": "break-word",
+                        },
                     ),
                 ],
                 className="returned-cif-details",
@@ -335,6 +355,7 @@ def format_model_client_error(e: Exception):
 
     tech_details = {"job_id": job_id, "cause": last_line, "command": cmd}
     return user_component, tech_details
+
 
 
 # -----------------------------
@@ -422,7 +443,7 @@ app = dash.Dash(
     external_stylesheets=external_stylesheets,
     assets_folder=str(ASSETS_DIR),
 )
-app.title = "CrystaLLM-π Webapp"
+app.title = "CrystaLLM-π"
 app._favicon = "logo.png"
 server = app.server  # for gunicorn
 
@@ -599,20 +620,23 @@ app.layout = html.Div(
                                             "PXRD CSV (optional):",
                                             htmlFor="pxrd-upload",
                                         ),
-                                        dcc.Upload(
-                                            id="pxrd-upload",
-                                            children=html.Div(
-                                                [
-                                                    "Drag & drop a .csv here, or ",
-                                                    html.A("browse"),
-                                                ]
-                                            ),
-                                            className="upload-box",
-                                            multiple=False,
+                                        html.Div(
+                                            id="pxrd-upload-wrapper",
+                                            children=[make_pxrd_upload()],
                                         ),
                                         html.Div(
-                                            id="pxrd-status",
-                                            className="help-text",
+                                            className="pxrd-status-row",
+                                            children=[
+                                                html.Div(id="pxrd-status", className="pxrd-status"),  # pill + optional warning text
+                                                html.Button(
+                                                    "×",
+                                                    id="pxrd-clear",
+                                                    n_clicks=0,
+                                                    className="pxrd-clear-btn",
+                                                    title="Remove file",
+                                                    style={"display": "none"},  # hidden until a file is uploaded
+                                                ),
+                                            ],
                                         ),
                                         html.Div(
                                             className="help-text",
@@ -1038,22 +1062,48 @@ app.clientside_callback(
 @app.callback(
     Output("pxrd-store", "data"),
     Output("pxrd-status", "children"),
+    Output("pxrd-clear", "style"),
+    Output("pxrd-upload-wrapper", "children"),
     Input("pxrd-upload", "contents"),
+    Input("pxrd-clear", "n_clicks"),
     State("pxrd-upload", "filename"),
+    State("pxrd-store", "data"),
+    prevent_initial_call=True,
 )
-def handle_pxrd_upload(contents, filename):
+def handle_pxrd_upload(contents, clear_clicks, filename, current_store):
+    trig = getattr(dash, "ctx", None).triggered_id if hasattr(dash, "ctx") else None
+
+    # ---- Clear/remove clicked ----
+    if trig == "pxrd-clear":
+        # best-effort: delete stored file
+        try:
+            if current_store and current_store.get("host_path"):
+                p = Path(current_store["host_path"])
+                if p.exists():
+                    p.unlink()
+        except Exception:
+            pass
+
+        return (
+            None,                  # pxrd-store
+            "",                    # pxrd-status
+            {"display": "none"},   # hide ×
+            [make_pxrd_upload()],  # remount upload (lets user re-upload same file)
+        )
+
+    # ---- Upload changed ----
     if not contents:
-        return None, ""
+        return None, "", {"display": "none"}, dash.no_update
 
     if not filename or not filename.lower().endswith(".csv"):
-        return None, html.Span("Please upload a .csv file.", className="error-message")
+        return None, html.Span("Please upload a .csv file.", className="error-message"), {"display": "none"}, dash.no_update
 
     try:
         _header, b64data = contents.split(",", 1)
         raw = base64.b64decode(b64data)
     except Exception as e:
         logger.exception(f"PXRD decode failed: {e}")
-        return None, html.Span("Could not decode uploaded file.", className="error-message")
+        return None, html.Span("Could not decode uploaded file.", className="error-message"), {"display": "none"}, dash.no_update
 
     upload_id = uuid.uuid4().hex
     safe_name = re.sub(r"[^a-zA-Z0-9_.-]+", "_", filename)
@@ -1064,31 +1114,23 @@ def handle_pxrd_upload(contents, filename):
         host_path.write_bytes(raw)
     except Exception as e:
         logger.exception(f"PXRD save failed: {e}")
-        return None, html.Span("Could not save uploaded file.", className="error-message")
+        return None, html.Span("Could not save uploaded file.", className="error-message"), {"display": "none"}, dash.no_update
 
-    # Parse once for both UI preview + lightweight validation.
-    try:
-        preview = pxrd_preview_from_bytes(raw)
-    except Exception as e:
-        msg = f"Uploaded, but preview/validation warning: {e}"
-        logger.info(msg)
-        return (
-            {"host_path": str(host_path), "container_path": container_path, "filename": filename},
-            html.Span(msg, className="warn-message"),
-        )
-
+    # Parse once for UI preview + lightweight validation
+    preview = None
     warnings = []
     try:
-        if (preview["theta_min"] < 0) or (preview["theta_max"] > 90):
-            warnings.append("2θ values should be within 0–90.")
-        # original file format expects 0–100, but we preview even if it isn't.
-        raw_intensity = preview.get("intensity", [])
-        if raw_intensity:
-            if (min(raw_intensity) < 0) or (max(raw_intensity) > 100):
+        preview = pxrd_preview_from_bytes(raw)
+        try:
+            if (preview["theta_min"] < 0) or (preview["theta_max"] > 90):
+                warnings.append("2θ values should be within 0–90.")
+            raw_intensity = preview.get("intensity", [])
+            if raw_intensity and ((min(raw_intensity) < 0) or (max(raw_intensity) > 100)):
                 warnings.append("Intensity values should be within 0–100.")
-    except Exception:
-        # never block upload on preview metadata issues
-        pass
+        except Exception:
+            pass
+    except Exception as e:
+        warnings.append(f"Preview/validation warning: {e}")
 
     store = {
         "host_path": str(host_path),
@@ -1097,12 +1139,19 @@ def handle_pxrd_upload(contents, filename):
         "preview": preview,
     }
 
+    badge_kind = "warn" if warnings else "ok"
+    status_children = [
+        html.Div(f"Uploaded: {filename}", className=f"pxrd-pill pxrd-pill--{badge_kind}"),
+    ]
     if warnings:
-        msg = "Uploaded, but validation warning: " + " ".join(warnings)
-        logger.info(msg)
-        return store, html.Span(msg, className="warn-message")
+        status_children.append(html.Div(" ".join(warnings), className="help-text", style={"marginTop": "6px"}))
 
-    return store, html.Span(f"Uploaded: {filename}", className="ok-message")
+    return (
+        store,
+        status_children,
+        {"display": "inline-flex"},  # show ×
+        dash.no_update,
+    )
 
 # -----------------------------
 # PXRD preview plot (if provided)
@@ -1242,22 +1291,22 @@ def update_pxrd_preview(pxrd_data):
     prevent_initial_call=True,
 )
 def generate_one_cif(n_clicks, composition_value, z_value, spacegroup_value, pxrd_data):
-    # With prevent_initial_call=True this won't run on load, but keep safe.
     if not n_clicks:
         return "", "", None, "", True, 0, None, VIEWER_HIDDEN, str(n_clicks), ""
 
     def err(msg: str):
+        # IMPORTANT: clear CIF + viewer + download + preview so previous success disappears
         return (
-            html.Div(msg, className="error-message"),
-            "",
-            None,
-            "",
-            True,
-            0,
-            None,
-            VIEWER_HIDDEN,
-            str(n_clicks),
-            "",
+            html.Div(msg, className="error-message"),  # result-container
+            "",                                        # cell-parameters
+            None,                                      # cif-store (clears success-only area)
+            "",                                        # cif-preview
+            True,                                      # download disabled
+            0,                                         # re-enable button
+            None,                                      # viewer data
+            VIEWER_HIDDEN,                             # viewer style
+            str(n_clicks),                             # gen-done-signal
+            "",                                        # loading-sentinel
         )
 
     if not composition_value or not str(composition_value).strip():
@@ -1273,9 +1322,7 @@ def generate_one_cif(n_clicks, composition_value, z_value, spacegroup_value, pxr
         return err("Composition must be stoichiometric with integer atom counts.")
 
     if not reduced_formula_is_reduced(comp):
-        return err(
-            "Please enter a reduced formula (e.g., PbTe not Pb2Te2). Use Z to specify formula units per cell."
-        )
+        return err("Please enter a reduced formula (e.g., PbTe not Pb2Te2). Use Z to specify formula units per cell.")
 
     reduced_comp, _ = comp.get_reduced_composition_and_factor()
 
@@ -1302,42 +1349,51 @@ def generate_one_cif(n_clicks, composition_value, z_value, spacegroup_value, pxr
         logger.exception(f"Model client error: {e}")
         user_component, _tech = format_model_client_error(e)
 
+        # IMPORTANT: clear CIF + viewer + download + preview so previous success disappears
         return (
-            user_component,
-            "",
-            None,
-            "",
-            True,
-            0,
-            None,
-            VIEWER_HIDDEN,
-            str(n_clicks),
-            "",
+            user_component,   # result-container
+            "",               # cell-parameters
+            None,             # cif-store
+            "",               # cif-preview
+            True,             # download disabled
+            0,                # re-enable button
+            None,             # viewer data
+            VIEWER_HIDDEN,    # viewer style
+            str(n_clicks),    # gen-done-signal
+            "",               # loading-sentinel
         )
     except Exception as e:
         logger.exception(f"Unexpected generation error: {e}")
         return err("Unexpected error while generating. Check app_logs.log for details.")
 
-    # cell params (best-effort)
+    # Cell params (best-effort)
     cell_params = ""
     try:
         cell_params = get_cell_params(cif_text)
     except Exception:
         cell_params = ""
 
-    # parse structure for viewer (best-effort)
+    # Parse structure for viewer (capture warnings; if parse fails show a warning box instead of viewer)
     structure_obj = None
     viewer_style = VIEWER_HIDDEN
-    try:
-        structure_obj = Structure.from_str(cif_text, fmt="cif")
+    parse_exc = None
+    warn_msgs = []
+
+    with warnings.catch_warnings(record=True) as w:
+        warnings.simplefilter("always")
+        try:
+            structure_obj = Structure.from_str(cif_text, fmt="cif")
+        except Exception as e:
+            parse_exc = e
+            structure_obj = None
+        warn_msgs = [str(x.message) for x in (w or []) if str(getattr(x, "message", "")).strip()]
+
+    if structure_obj is not None and parse_exc is None:
         viewer_style = VIEWER_SHOWN
-    except Exception:
-        structure_obj = None
-        viewer_style = VIEWER_HIDDEN
 
     ok_msg = html.Div(
         [
-            html.Div("Success: generated 1 CIF.", className="ok-message"),
+            html.Div("Success: generated CIF.", className="ok-message"),
             html.Div(
                 [
                     "Sent to model: ",
@@ -1350,8 +1406,74 @@ def generate_one_cif(n_clicks, composition_value, z_value, spacegroup_value, pxr
         ]
     )
 
-    # button-control-store = 0 => re-enable button (clientside reacts)
-    return ok_msg, cell_params, cif_text, cif_text, False, 0, structure_obj, viewer_style, str(n_clicks), ""
+    # If viewer parsing failed, show a "Structure viewer unavailable" warning (with dropdown details)
+    cell_params_children = cell_params
+    if viewer_style == VIEWER_HIDDEN:
+        cause_line = _extract_last_exception_line(str(parse_exc)) if parse_exc else ""
+        warning_pre = "\n".join(
+            [
+                "Cause:",
+                (cause_line or "(unknown)"),
+                "",
+                "Warnings (if any):",
+                ("\n".join(f"- {m}" for m in warn_msgs) if warn_msgs else "(none captured)"),
+                "",
+                "Note: You can still download the CIF below and inspect the CIF text.",
+            ]
+        )
+
+        warning_box = html.Div(
+            [
+                html.Div("Structure viewer unavailable", className="warn-message"),
+                html.Div(
+                    "A CIF was generated, but it could not be parsed into a valid structure for rendering.",
+                    className="help-text",
+                    style={"marginTop": "6px"},
+                ),
+                html.Details(
+                    [
+                        html.Summary("Technical details", className="cif-summary"),
+                        html.Pre(
+                            warning_pre,
+                            className="returned-cif",
+                            style={
+                                "maxHeight": "320px",
+                                "whiteSpace": "pre-wrap",
+                                "overflowWrap": "anywhere",
+                                "wordBreak": "break-word",
+                            },
+                        ),
+                    ],
+                    className="returned-cif-details",
+                    open=False,
+                ),
+            ],
+            style={"marginTop": "10px"},
+        )
+
+        # Put warning just under the cell-params line (viewer itself stays hidden)
+        if cell_params:
+            cell_params_children = html.Div(
+                [
+                    html.Div(cell_params, className="cell-params"),
+                    warning_box,
+                ]
+            )
+        else:
+            cell_params_children = warning_box
+
+    return (
+        ok_msg,               # result-container
+        cell_params_children, # cell-parameters (may include warning box)
+        cif_text,             # cif-store => keeps download + CIF text available
+        cif_text,             # cif-preview
+        False,                # download enabled
+        0,                    # re-enable button
+        structure_obj,        # viewer data (None if parse failed)
+        viewer_style,         # viewer style
+        str(n_clicks),        # gen-done-signal
+        "",                   # loading-sentinel
+    )
 
 
 # -----------------------------
