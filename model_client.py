@@ -27,6 +27,10 @@ class CrystaLLMPiClientConfig:
     model_base: str
     model_pxrd: str
 
+    # Postprocessing
+    enable_postprocess: bool
+    postprocess_strict: bool
+
 
 def _env_int(name: str, default: int) -> int:
     try:
@@ -40,6 +44,13 @@ def _env_float(name: str, default: float) -> float:
         return float(os.getenv(name, str(default)))
     except Exception:
         return default
+    
+    
+def _env_bool(name: str, default: bool) -> bool:
+    v = os.getenv(name)
+    if v is None:
+        return default
+    return str(v).strip().lower() in ("1", "true", "yes", "y", "on")
 
 
 def _build_headers() -> Dict[str, str]:
@@ -163,6 +174,86 @@ class CrystaLLMPiApiClient:
             f"Timed out waiting for output parquet: {host_parquet}. "
             f"Check the API container logs and confirm /app/outputs is mounted to {self.cfg.shared_outputs_dir_host}."
         )
+    
+    def _extract_cif_from_postprocess_response(self, data: Dict[str, Any]) -> str:
+        # common single-string keys
+        for k in ("cif", "cif_text", "processed_cif", "postprocessed_cif", "result"):
+            v = data.get(k)
+            if isinstance(v, str) and len(v.strip()) > 20:
+                return v
+
+        # common list forms
+        v = data.get("cifs")
+        if isinstance(v, list) and v and isinstance(v[0], str) and len(v[0].strip()) > 20:
+            return v[0]
+
+        # sometimes wrapped in results/items
+        v = data.get("results") or data.get("items")
+        if isinstance(v, list) and v:
+            first = v[0]
+            if isinstance(first, dict):
+                for k in ("cif", "cif_text", "processed_cif", "postprocessed_cif"):
+                    s = first.get(k)
+                    if isinstance(s, str) and len(s.strip()) > 20:
+                        return s
+
+        raise ModelClientError(
+            f"Postprocess returned unexpected JSON shape. Keys: {list(data.keys())}"
+        )
+
+    def postprocess_cif(self, cif_text: str) -> str:
+        """
+        Best-effort postprocess via /generate/postprocess.
+        Tries a few payload shapes for compatibility.
+        """
+        payloads = [
+            {"cif": cif_text},
+            {"cif_text": cif_text},
+            {"cifs": [cif_text]},
+        ]
+
+        last_err: Optional[Exception] = None
+        for payload in payloads:
+            try:
+                data = self._post_json("/generate/postprocess", payload)
+                return self._extract_cif_from_postprocess_response(data)
+            except Exception as e:
+                last_err = e
+                # try next payload shape
+
+        # if all shapes fail, either raise or fall back
+        if self.cfg.postprocess_strict:
+            raise ModelClientError(f"Postprocess failed: {last_err}")
+        return cif_text
+    
+    def postprocess_parquet(self, input_parquet_container: str, output_parquet_container: str) -> None:
+        """
+        Run /generate/postprocess, which expects parquet paths (container-side).
+        Writes a new parquet to output_parquet_container.
+        """
+        payload = {
+            "input_parquet": input_parquet_container,
+            "output_parquet": output_parquet_container,
+        }
+
+        resp = self._post_json("/generate/postprocess", payload)
+
+        # Some deployments might return a job id; handle it best-effort
+        returned_job = resp.get("job_id") or resp.get("id")
+        if returned_job:
+            deadline = time.time() + self.cfg.poll_timeout_s
+            while time.time() < deadline:
+                st = self._get_json(f"/jobs/{returned_job}")
+                status = (st.get("status") or st.get("state") or "").lower()
+                if status in ("completed", "succeeded", "success", "done"):
+                    return
+                if status in ("failed", "error"):
+                    raise ModelClientError(f"Job failed: {st}")
+                time.sleep(self.cfg.poll_interval_s)
+
+        # If no job id, assume synchronous; caller will still wait for output parquet
+        return
+
 
     def generate_cif(
         self,
@@ -170,6 +261,7 @@ class CrystaLLMPiApiClient:
         spacegroup: Optional[str],
         pxrd_csv_container_path: Optional[str],
         num_return_sequences: int = 1,
+        max_return_attempts: int = 3,
     ) -> str:
         """
         Returns one CIF text.
@@ -194,8 +286,9 @@ class CrystaLLMPiApiClient:
             "model_type": model_type,
             "compositions": composition_explicit,
             "num_return_sequences": int(num_return_sequences),
+            "max_return_attempts": int(max_return_attempts),
             "output_parquet": output_parquet_container,
-            "scoring_mode": str("None"),
+            "scoring_mode": str("LOGP"),
         }
 
         # Prompt detail level
@@ -237,16 +330,44 @@ class CrystaLLMPiApiClient:
         # Local docker mode: wait for parquet file to appear in mounted outputs dir
         self._wait_for_output_parquet(output_parquet_host)
 
-        # Read parquet and extract CIF
+        # Read parquet and extract CIF (raw)
         try:
-            import pandas as pd  # local import to keep module import light
-
-            df = pd.read_parquet(output_parquet_host)
+            import pandas as pd
+            df_raw = pd.read_parquet(output_parquet_host)
         except Exception as e:
             raise ModelClientError(f"Failed reading output parquet {output_parquet_host}: {e}")
 
-        cif_text = _find_cif_in_parquet(df)
-        return cif_text
+        cif_raw = _find_cif_in_parquet(df_raw)
+
+        # Optional postprocess: uses parquet paths, not CIF text
+        if self.cfg.enable_postprocess:
+            post_id = uuid.uuid4().hex
+            post_parquet_container = f"/app/outputs/{post_id}_post.parquet"
+            post_parquet_host = self.cfg.shared_outputs_dir_host / f"{post_id}_post.parquet"
+            post_parquet_host.parent.mkdir(parents=True, exist_ok=True)
+
+            try:
+                # kick off postprocess
+                self.postprocess_parquet(
+                    input_parquet_container=output_parquet_container,
+                    output_parquet_container=post_parquet_container,
+                )
+
+                # wait for the postprocessed parquet to appear on the host mount
+                self._wait_for_output_parquet(post_parquet_host)
+
+                # read and extract postprocessed CIF
+                df_post = pd.read_parquet(post_parquet_host)
+                cif_post = _find_cif_in_parquet(df_post)
+                return cif_post
+
+            except Exception as e:
+                # strict => surface error; non-strict => fall back to raw CIF
+                if self.cfg.postprocess_strict:
+                    raise ModelClientError(f"Postprocess failed: {e}")
+                return cif_raw
+
+        return cif_raw
 
 
 def get_model_client() -> CrystaLLMPiApiClient:
@@ -260,5 +381,7 @@ def get_model_client() -> CrystaLLMPiApiClient:
         ).resolve(),
         model_base=os.getenv("CRYSTALLM_PI_MODEL_BASE", "c-bone/CrystaLLM-pi_base"),
         model_pxrd=os.getenv("CRYSTALLM_PI_MODEL_PXRD", "c-bone/CrystaLLM-pi_COD-XRD"),
+        enable_postprocess=_env_bool("CRYSTALLM_PI_ENABLE_POSTPROCESS", True),
+        postprocess_strict=_env_bool("CRYSTALLM_PI_POSTPROCESS_STRICT", True),
     )
     return CrystaLLMPiApiClient(cfg)
