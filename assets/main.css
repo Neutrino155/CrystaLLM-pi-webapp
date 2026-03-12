@@ -1268,16 +1268,16 @@ span.icon {
   }
 
   .logo {
-    height: 56px;
+    height: 84px;
   }
 
   .brand-title {
-    font-size: 20px;
+    font-size: 30px;
     line-height: 1.05;
   }
 
   .brand-subtitle {
-    font-size: 11px;
+    font-size: 17px;
     line-height: 1.15;
   }
 
@@ -1309,7 +1309,7 @@ span.icon {
   }
 
   .logo {
-    height: 50px;
+    height: 75px;
     flex: 0 0 auto;
   }
 
@@ -1319,12 +1319,12 @@ span.icon {
   }
 
   .brand-title {
-    font-size: 18px;
+    font-size: 24px;
   }
 
   .brand-subtitle {
     display: block;
-    font-size: 11px;
+    font-size: 17px;
     line-height: 1.2;
     margin-top: 4px;
   }
