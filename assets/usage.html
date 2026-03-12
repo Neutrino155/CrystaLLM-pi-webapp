@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>CrystaLLM-pi Webapp — Usage Guide</title>
+  <link rel="stylesheet" href="/assets/main.css">
+  <style>
+    .guide-shell {
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+    .guide-main {
+      flex: 1 0 auto;
+    }
+    .guide-container {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 26px 18px 42px;
+    }
+    .guide-hero {
+      position: relative;
+      overflow: hidden;
+      background:
+        radial-gradient(700px 260px at 100% 0%, rgba(46, 210, 201, 0.12), transparent 55%),
+        radial-gradient(700px 260px at 0% 0%, rgba(177, 42, 168, 0.10), transparent 55%),
+        linear-gradient(180deg, rgba(255, 255, 255, 0.92), rgba(255, 255, 255, 0.98));
+      border: 1px solid var(--border);
+      border-radius: 24px;
+      box-shadow: var(--shadow);
+      padding: 30px 28px;
+      margin-bottom: 20px;
+    }
+    .guide-kicker {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      border-radius: 999px;
+      padding: 6px 12px;
+      background: rgba(11, 45, 109, 0.08);
+      color: var(--psdi-navy);
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      margin-bottom: 14px;
+    }
+    .guide-title {
+      margin: 0;
+      font-size: clamp(30px, 4vw, 48px);
+      line-height: 1.02;
+      letter-spacing: -0.03em;
+    }
+    .guide-subtitle {
+      margin: 14px 0 0;
+      max-width: 78ch;
+      color: var(--muted);
+      font-size: 16px;
+    }
+    .guide-grid {
+      display: grid;
+      gap: 18px;
+      grid-template-columns: repeat(12, 1fr);
+    }
+    .guide-card {
+      grid-column: span 12;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      box-shadow: var(--shadow);
+      padding: 24px;
+    }
+    .guide-card--half {
+      grid-column: span 6;
+    }
+    .guide-card h2,
+    .guide-card h3 {
+      margin-top: 0;
+    }
+    .guide-card p,
+    .guide-card li {
+      color: var(--muted);
+    }
+    .guide-card ul,
+    .guide-card ol {
+      margin: 10px 0 0;
+      padding-left: 22px;
+    }
+    .guide-steps {
+      display: grid;
+      gap: 12px;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      margin-top: 18px;
+    }
+    .guide-step {
+      background: linear-gradient(180deg, rgba(31, 77, 179, 0.04), rgba(255, 255, 255, 0.95));
+      border: 1px solid rgba(11, 45, 109, 0.10);
+      border-radius: 18px;
+      padding: 16px;
+    }
+    .guide-step-number {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 32px;
+      height: 32px;
+      border-radius: 999px;
+      background: var(--psdi-navy);
+      color: #fff;
+      font-weight: 700;
+      margin-bottom: 10px;
+    }
+    .guide-step strong {
+      display: block;
+      margin-bottom: 6px;
+    }
+    .guide-note {
+      margin-top: 14px;
+      padding: 14px 16px;
+      border-radius: 16px;
+      background: rgba(31, 77, 179, 0.06);
+      border: 1px solid rgba(31, 77, 179, 0.12);
+    }
+    .guide-code {
+      font-family: "Fira Code", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      background: #f3f4f6;
+      border: 1px solid rgba(11, 18, 32, 0.10);
+      border-radius: 8px;
+      padding: 2px 8px;
+      color: var(--text);
+      font-size: 0.95em;
+    }
+    .guide-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 10px;
+      overflow: hidden;
+      border-radius: 14px;
+      border: 1px solid rgba(11, 45, 109, 0.10);
+    }
+    .guide-table th,
+    .guide-table td {
+      text-align: left;
+      padding: 12px 14px;
+      border-bottom: 1px solid rgba(11, 45, 109, 0.08);
+      vertical-align: top;
+    }
+    .guide-table th {
+      background: rgba(11, 45, 109, 0.05);
+      color: var(--psdi-navy);
+      font-size: 13px;
+      letter-spacing: 0.02em;
+    }
+    .guide-table tr:last-child td {
+      border-bottom: 0;
+    }
+    .guide-link-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 18px;
+    }
+    .guide-pill {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 999px;
+      padding: 10px 14px;
+      background: rgba(11, 45, 109, 0.06);
+      border: 1px solid rgba(11, 45, 109, 0.12);
+      color: var(--psdi-navy);
+      font-weight: 600;
+    }
+    .guide-link-row a:hover {
+      text-decoration: none;
+    }
+    .header-right a[aria-current="page"] {
+      background: rgba(255, 255, 255, 0.14);
+      border-color: rgba(255, 255, 255, 0.28);
+    }
+    @media (max-width: 980px) {
+      .guide-card--half {
+        grid-column: span 12;
+      }
+      .guide-steps {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+    }
+    @media (max-width: 680px) {
+      .guide-hero {
+        padding: 24px 20px;
+      }
+      .guide-steps {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="guide-shell">
+    <div class="header">
+      <a href="/" class="homelink">
+        <img src="/assets/logo.png" class="logo" width="143" alt="logo">
+        <div class="brand-text">
+          <div class="brand-title">CrystaLLM-π</div>
+          <div class="brand-subtitle">Crystal structure generation</div>
+        </div>
+      </a>
+      <div class="header-right">
+        <a href="/"><div>Back to Webapp</div></a>
+        <a href="https://github.com/C-Bone-UCL/CrystaLLM-pi" target="_blank" rel="noopener noreferrer"><div>GitHub</div></a>
+        <a href="https://arxiv.org/abs/2511.21299" target="_blank" rel="noopener noreferrer"><div>Paper</div></a>
+      </div>
+    </div>
+
+    <main class="guide-main">
+      <div class="guide-container">
+        <section class="guide-hero">
+          <div class="guide-kicker">Usage Guide</div>
+          <h1 class="guide-title">Prepare inputs, submit a request, and review the generated structure.</h1>
+          <p class="guide-subtitle">
+            The webapp supports composition-based structure generation with optional space group, Z, and diffraction constraints.
+            Peak-picked XRD files can be supplied in several common text-based formats, with optional wavelength selection.
+          </p>
+          <div class="guide-link-row">
+            <a href="/" class="guide-pill">Open the webapp</a>
+          </div>
+        </section>
+
+        <div class="guide-grid">
+          <section class="guide-card">
+            <h2>Typical workflow</h2>
+            <div class="guide-steps">
+              <div class="guide-step">
+                <div class="guide-step-number">1</div>
+                <strong>Enter a reduced composition</strong>
+                <p>Use a reduced formula such as <span class="guide-code">PbTe</span>, <span class="guide-code">TiO2</span>, or <span class="guide-code">Bi2Se3</span>.</p>
+              </div>
+              <div class="guide-step">
+                <div class="guide-step-number">2</div>
+                <strong>Add optional crystallographic constraints</strong>
+                <p>Specify <span class="guide-code">Z</span> and a space group when that information is available.</p>
+              </div>
+              <div class="guide-step">
+                <div class="guide-step-number">3</div>
+                <strong>Add an XRD file if required</strong>
+                <p>Upload a peak-picked diffraction pattern and expand the advanced options only when you need a non-default wavelength.</p>
+              </div>
+              <div class="guide-step">
+                <div class="guide-step-number">4</div>
+                <strong>Inspect the result</strong>
+                <p>Review the request summary, open the CIF text, explore the structure viewer, and download the generated CIF.</p>
+              </div>
+            </div>
+          </section>
+
+          <section class="guide-card guide-card--half">
+            <h3>Required input</h3>
+            <p><strong>Composition</strong> is the only required field. Enter the reduced formula for the target composition.</p>
+            <div class="guide-note">
+              Examples: <span class="guide-code">PbTe</span>, <span class="guide-code">TiO2</span>, <span class="guide-code">CsPbI3</span>
+            </div>
+          </section>
+
+          <section class="guide-card guide-card--half">
+            <h3>Optional crystallographic constraints</h3>
+            <ul>
+              <li><strong>Z</strong>: formula units per unit cell</li>
+              <li><strong>Space group</strong>: choose from the provided list when known</li>
+              <li><strong>XRD file</strong>: add diffraction information to guide structure generation</li>
+            </ul>
+          </section>
+
+          <section class="guide-card" id="xrd">
+            <h2>XRD file guidance</h2>
+            <p>The XRD upload control accepts text-based peak-picked patterns in the following formats:</p>
+            <table class="guide-table">
+              <thead>
+                <tr>
+                  <th>Supported extensions</th>
+                  <th>Expected content</th>
+                  <th>Notes</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><span class="guide-code">.csv</span>, <span class="guide-code">.xy</span>, <span class="guide-code">.dat</span>, <span class="guide-code">.txt</span></td>
+                  <td>Peak-picked two-column diffraction data, typically <span class="guide-code">2θ</span> and intensity</td>
+                  <td>Use the advanced options only when needed.</td>
+                </tr>
+              </tbody>
+            </table>
+            <div class="guide-note">
+              The web interface expects a peak-picked pattern. Raw diffraction reduction and peak extraction should be completed before upload.
+            </div>
+          </section>
+
+          <section class="guide-card guide-card--half">
+            <h3>Advanced XRD options</h3>
+            <p>The XRD card includes an <strong>Advanced XRD options</strong> toggle. This section is hidden by default.</p>
+            <ul>
+              <li><strong>Cu Kα</strong> is the default wavelength</li>
+              <li><strong>Mo Kα</strong> and <strong>Co Kα</strong> are available as presets</li>
+              <li><strong>Custom wavelength</strong> can be entered directly when required</li>
+            </ul>
+          </section>
+
+          <section class="guide-card guide-card--half">
+            <h3>Preview and file handling</h3>
+            <p>After upload, the webapp validates the file, shows the filename and preview, and makes the saved diffraction file available to the generation workflow.</p>
+            <p>Clearing the upload removes the saved file and resets the XRD section.</p>
+          </section>
+
+          <section class="guide-card" id="results">
+            <h2>Results and output</h2>
+            <p>After a successful run, the results panel provides:</p>
+            <ul>
+              <li>a request summary</li>
+              <li>cell parameters when available</li>
+              <li>a 3D structure viewer</li>
+              <li>downloadable CIF output</li>
+              <li>an expandable section for the CIF text</li>
+            </ul>
+          </section>
+
+          <section class="guide-card guide-card--half">
+            <h3>First test submission</h3>
+            <ol>
+              <li>Open the application</li>
+              <li>Enter <span class="guide-code">PbTe</span> as the composition</li>
+              <li>Leave the optional fields blank</li>
+              <li>Click <strong>Generate CIF</strong></li>
+            </ol>
+            <p>This is the simplest way to verify that the web interface and service configuration are working correctly.</p>
+          </section>
+
+          <section class="guide-card guide-card--half">
+            <h3>Second test with diffraction input</h3>
+            <ol>
+              <li>Enter a reduced composition such as <span class="guide-code">TiO2</span></li>
+              <li>Upload a peak-picked XRD file</li>
+              <li>Expand <strong>Advanced XRD options</strong> only if you need to set the wavelength</li>
+              <li>Submit the request and confirm that the preview and generated output are shown</li>
+            </ol>
+          </section>
+        </div>
+      </div>
+    </main>
+
+    <footer class="psdi-footer">
+      <div class="psdi-footer-inner">
+        <div class="psdi-footer-left">
+          <div class="psdi-footer-kicker">In partnership with</div>
+          <div class="psdi-footer-text">Physical Sciences Data Infrastructure <span class="psdi-footer-acronym">(PSDI)</span></div>
+          <div class="psdi-footer-copy">Copyright © 2026 CrystaLLM-π</div>
+        </div>
+        <a href="https://www.psdi.ac.uk/" target="_blank" rel="noopener noreferrer" class="psdi-footer-link">
+          <div class="psdi-footer-mark" title="PSDI"></div>
+        </a>
+      </div>
+    </footer>
+  </div>
+</body>
+</html>

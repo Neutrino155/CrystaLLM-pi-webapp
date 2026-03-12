@@ -11,8 +11,7 @@ function startProgress() {
 
     window.progress = 0;
 
-    // Your new UI doesn't have #model-size anymore.
-    // Keep the timing simple and robust.
+    // Use a simple and robust timing model for the progress animation.
     let isLarge = false;
 
     let hasZ = false;

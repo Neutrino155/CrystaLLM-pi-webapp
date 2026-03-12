@@ -14,11 +14,15 @@ from dash import dcc, html
 from dash.dependencies import Input, Output, State
 
 import plotly.graph_objects as go
-from flask import send_from_directory
+from flask import request, send_from_directory
 from pymatgen.core import Composition
 from pymatgen.core.structure import Structure
 
 import crystal_toolkit.components as ctc
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
+from limits.util import parse_many
+from werkzeug.middleware.proxy_fix import ProxyFix
 
 from model_client import get_model_client, ModelClientError
 
@@ -56,10 +60,7 @@ UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
 OUTPUTS_DIR.mkdir(parents=True, exist_ok=True)
 
 def ensure_assets_present():
-    """
-    Dash only auto-serves files from ./assets.
-    If assets exist at repo root, copy missing ones into ./assets on startup.
-    """
+    """Ensure required static assets are available from Dash's assets directory."""
     ASSETS_DIR.mkdir(parents=True, exist_ok=True)
 
     candidates = [
@@ -120,16 +121,35 @@ def get_cell_params(cif_str: str) -> str:
 # -----------------------------
 # PXRD helpers (preview plot)
 # -----------------------------
+ALLOWED_XRD_EXTENSIONS = (".csv", ".xy", ".dat", ".txt")
+XRD_WAVELENGTH_OPTIONS = [
+    {"label": "Cu Kα (default, 1.5406 Å)", "value": "default"},
+    {"label": "Mo Kα (0.71073 Å)", "value": "0.71073"},
+    {"label": "Co Kα (1.78897 Å)", "value": "1.78897"},
+    {"label": "Custom wavelength…", "value": "custom"},
+]
+
+
 def pxrd_preview_from_bytes(raw: bytes, max_points: int = 4000) -> dict:
-    """Parse a 2-column PXRD CSV (2θ, intensity) from raw bytes for UI preview."""
+    """Parse a two-column peak-picked XRD file for preview.
+
+    Comma-separated and whitespace-delimited text files are supported.
+    Non-numeric lines are ignored.
+    """
     import pandas as pd
     from io import BytesIO
 
-    df = pd.read_csv(BytesIO(raw), header=None)
+    df = pd.read_csv(
+        BytesIO(raw),
+        sep=r"[\s,;	]+",
+        engine="python",
+        comment="#",
+        header=None,
+        skip_blank_lines=True,
+    )
     if df.shape[1] < 2:
-        raise ValueError("CSV must have at least 2 columns: 2theta, intensity")
+        raise ValueError("The uploaded file must contain at least two columns: 2θ and intensity.")
 
-    # coerce + drop bad rows
     two_theta = pd.to_numeric(df.iloc[:, 0], errors="coerce")
     intensity = pd.to_numeric(df.iloc[:, 1], errors="coerce")
     mask = two_theta.notna() & intensity.notna()
@@ -137,15 +157,13 @@ def pxrd_preview_from_bytes(raw: bytes, max_points: int = 4000) -> dict:
     intensity = intensity[mask].astype(float).tolist()
 
     if len(two_theta) == 0:
-        raise ValueError("No numeric data found in CSV.")
+        raise ValueError("No numeric 2θ/intensity pairs were found in the uploaded file.")
 
-    # sort by 2θ
     pairs = sorted(zip(two_theta, intensity), key=lambda x: x[0])
     two_theta, intensity = zip(*pairs)
     two_theta = list(two_theta)
     intensity = list(intensity)
 
-    # downsample if huge
     n = len(two_theta)
     if n > max_points:
         step = max(1, n // max_points)
@@ -166,12 +184,31 @@ def pxrd_preview_from_bytes(raw: bytes, max_points: int = 4000) -> dict:
         "i_max": float(imax),
     }
 
+
+def parse_xrd_wavelength(selection: str, custom_value) -> float | None:
+    """Return the selected X-ray wavelength in angstroms."""
+    selection = (selection or "default").strip()
+    if selection in ("", "default"):
+        return None
+    if selection == "custom":
+        if custom_value in (None, ""):
+            raise ValueError("Enter a wavelength in angstrom for the custom selection.")
+        value = float(custom_value)
+    else:
+        value = float(selection)
+
+    if value <= 0:
+        raise ValueError("The X-ray wavelength must be greater than zero.")
+    return value
+
+
 def make_pxrd_upload():
     return dcc.Upload(
         id="pxrd-upload",
-        children=html.Div(["Drag & drop a .csv here, or ", html.A("browse")]),
+        children=html.Div(["Drag and drop XRD file, or ", html.A("browse")]),
         className="upload-box",
         multiple=False,
+        accept=",".join(ALLOWED_XRD_EXTENSIONS),
     )
 
 # -----------------------------
@@ -190,10 +227,7 @@ def reduced_formula_is_reduced(comp: Composition) -> bool:
 
 
 def composition_to_explicit_stoich(comp: Composition) -> str:
-    """
-    CrystaLLM-pi expects explicit stoichiometry like Cs1Pb1I3.
-    Deterministic alphabetical ordering: ElementSymbol + integer count.
-    """
+    """Return an explicit-stoichiometry formula string in deterministic alphabetical order."""
     amounts = comp.get_el_amt_dict()
     parts = []
     for el in sorted(amounts.keys()):
@@ -289,28 +323,28 @@ def format_model_client_error(e: Exception):
 
     # Map common failure patterns -> friendlier copy
     tips = [
-        "Try again (sampling can be stochastic).",
-        "If you set a space group, try removing it or choosing a different one.",
-        "If you uploaded PXRD, try generating once without it (or with fewer/cleaner peaks).",
+        "Try again.",
+        "Try removing or changing the space group.",
+        "If you uploaded XRD, try again without it or with a cleaner peak list.",
     ]
 
     if ("FileNotFoundError" in (err_text or "")) or ("No such file or directory" in (err_text or "")):
         friendly_cause = (
-            "The backend couldn’t read the PXRD CSV file (it wasn’t found inside the backend container). "
-            "Please re-upload the PXRD CSV and try again."
+            "The uploaded diffraction file could not be located during processing. "
+            "Please upload the file again and retry."
         )
         tips = [
-            "Re-upload the PXRD CSV (even if it looks uploaded) and try again.",
-            "Try generating once without PXRD to confirm the model works.",
+            "Re-upload the XRD file and try again.",
+            "Try again without XRD to isolate the issue.",
         ] + tips
     elif "Column 'Generated CIF' not found" in (err_text or "") or "Generated CIF" in (last_line or ""):
         friendly_cause = (
-            "The backend did not produce any valid CIF output for this request (generation returned zero results)."
+            "No valid CIF could be produced for this request."
         )
     elif "Failed after" in (err_text or ""):
-        friendly_cause = "The backend failed to generate a valid structure after several attempts."
+        friendly_cause = "A valid structure could not be generated after several attempts."
     else:
-        friendly_cause = "The backend job failed while generating the structure."
+        friendly_cause = "The generation request did not complete successfully."
 
     support_line = f"Job ID: {job_id}" if job_id else "Job ID unavailable"
 
@@ -447,9 +481,38 @@ app.title = "CrystaLLM-π"
 app._favicon = "logo.png"
 server = app.server  # for gunicorn
 
+@server.route("/usage")
+def usage_guide():
+    """Serve the standalone usage guide."""
+    return send_from_directory(str(ASSETS_DIR), "usage.html")
+
+# Trust one reverse-proxy hop for client IP discovery (adjust if needed).
+server.wsgi_app = ProxyFix(server.wsgi_app, x_for=1, x_proto=1, x_host=1, x_port=1)
+
+RATE_LIMIT_STORAGE_URI = os.getenv("RATE_LIMIT_STORAGE_URI", "redis://localhost:6379/0")
+RATE_LIMIT_RULE = os.getenv("RATE_LIMIT_RULE", "5/minute;30/hour;100/day")
+
+limiter = Limiter(
+    key_func=get_remote_address,
+    storage_uri=RATE_LIMIT_STORAGE_URI,
+    strategy="moving-window",
+    fail_on_first_breach=False,
+)
+limiter.init_app(server)
+LIMITS = parse_many(RATE_LIMIT_RULE)
+
+
+def check_gen_rate_limit() -> bool:
+    key = f"gen:{get_remote_address()}"
+    for limit in LIMITS:
+        if not limiter.limiter.hit(limit, key):
+            return False
+    return True
+
+
 client = get_model_client()
 logger.info(f"Using model client: {type(client).__name__}")
-logger.info(f"DATA_DIR={DATA_DIR} OUTPUTS_DIR={OUTPUTS_DIR}")
+logger.info("Using shared storage for uploaded diffraction files and generation results")
 
 
 # Crystal Toolkit 3D viewer component
@@ -486,12 +549,17 @@ def header():
                 className="header-right",
                 children=[
                     html.A(
+                        href="/usage",
+                        children=[html.Div("Usage Guide")],
+                    ),
+                    html.A(
                         href="https://github.com/C-Bone-UCL/CrystaLLM-pi",
                         target="_blank",
                         children=[html.Div("GitHub")],
                     ),
                     html.A(
                         href="https://arxiv.org/abs/2511.21299",
+                        target="_blank",
                         children=[html.Div("Paper")],
                     ),
                 ],
@@ -508,18 +576,18 @@ app.layout = html.Div(
             className="container",
             children=[
                 dcc.Store(id="dummy-store", storage_type="session"),
-                dcc.Store(id="button-control-store", data=0),  # server writes 0 to re-enable
+                dcc.Store(id="button-control-store", data=0),  # Server-side flag used to re-enable the submit button.
                 dcc.Store(
                     id="ui-signal",
-                    data=0,  # clientside writes here (avoid duplicate outputs)
+                    data=0,  # Client-side signal used to avoid duplicate outputs.
                 ),
                 dcc.Store(
                     id="viewer-resize-ping",
-                    data=0,  # clientside "ping"
+                    data=0,  # Client-side resize signal.
                 ),
                 dcc.Store(
                     id="xrd-resize-ping",
-                    data=0,  # clientside "ping"
+                    data=0,  # Client-side resize signal.
                 ),
                 dcc.Store(id="progress-active", data=0),
                 dcc.Store(id="progress-value", data=0),
@@ -527,7 +595,7 @@ app.layout = html.Div(
                 html.Div(id="loading-sentinel", style={"display": "none"}),
                 dcc.Store(
                     id="pxrd-store",
-                    data=None,  # {host_path, container_path, filename}
+                    data=None,  # Stored upload metadata for the selected diffraction file.
                 ),
                 dcc.Store(id="cif-store", data=None),
                 html.Div(
@@ -562,7 +630,7 @@ app.layout = html.Div(
                                         html.Div(
                                             className="help-text",
                                             children=[
-                                                "Tip: You can type reduced formulas (PbTe). We convert to explicit stoichiometry (Pb1Te1) for CrystaLLM-π."
+                                                "Use a reduced formula, for example PbTe."
                                             ],
                                         ),
                                     ],
@@ -588,7 +656,7 @@ app.layout = html.Div(
                                         html.Div(
                                             className="help-text",
                                             children=[
-                                                "If provided, we multiply the reduced formula by Z before sending to the model."
+                                                "Leave blank to infer Z automatically."
                                             ],
                                         ),
                                     ],
@@ -617,7 +685,7 @@ app.layout = html.Div(
                                     className="form-row",
                                     children=[
                                         html.Label(
-                                            "PXRD CSV (optional):",
+                                            "Peak-picked XRD file (optional):",
                                             htmlFor="pxrd-upload",
                                         ),
                                         html.Div(
@@ -627,21 +695,67 @@ app.layout = html.Div(
                                         html.Div(
                                             className="pxrd-status-row",
                                             children=[
-                                                html.Div(id="pxrd-status", className="pxrd-status"),  # pill + optional warning text
+                                                html.Div(id="pxrd-status", className="pxrd-status"),
                                                 html.Button(
                                                     "×",
                                                     id="pxrd-clear",
                                                     n_clicks=0,
                                                     className="pxrd-clear-btn",
                                                     title="Remove file",
-                                                    style={"display": "none"},  # hidden until a file is uploaded
+                                                    style={"display": "none"},
                                                 ),
                                             ],
                                         ),
                                         html.Div(
                                             className="help-text",
                                             children=[
-                                                "CSV format: 2 columns = 2θ (0–90), intensity (0–100), up to ~20 strongest peaks."
+                                                "Accepted formats: .csv, .xy, .dat, .txt. Upload a peak-picked 2θ/intensity pattern."
+                                            ],
+                                        ),
+                                        html.Button(
+                                            "Advanced XRD options",
+                                            id="xrd-advanced-toggle",
+                                            n_clicks=0,
+                                            className="mtrls-button secondary xrd-advanced-toggle",
+                                            type="button",
+                                        ),
+                                        html.Div(
+                                            id="xrd-advanced-panel",
+                                            className="xrd-advanced-panel",
+                                            style={"display": "none"},
+                                            children=[
+                                                html.Label(
+                                                    "X-ray wavelength (optional):",
+                                                    htmlFor="xrd-wavelength",
+                                                ),
+                                                dcc.Dropdown(
+                                                    id="xrd-wavelength",
+                                                    options=XRD_WAVELENGTH_OPTIONS,
+                                                    value="default",
+                                                    clearable=False,
+                                                    searchable=False,
+                                                    className="dropdown",
+                                                ),
+                                                html.Div(
+                                                    id="xrd-wavelength-custom-wrap",
+                                                    style={"display": "none", "marginTop": "10px"},
+                                                    children=[
+                                                        dcc.Input(
+                                                            id="xrd-wavelength-custom",
+                                                            type="number",
+                                                            min=0,
+                                                            step="any",
+                                                            placeholder="Custom wavelength (Å)",
+                                                            className="text-input",
+                                                        )
+                                                    ],
+                                                ),
+                                                html.Div(
+                                                    className="help-text",
+                                                    children=[
+                                                        "Default: Cu Kα (1.5406 Å)."
+                                                    ],
+                                                ),
                                             ],
                                         ),
                                     ],
@@ -700,7 +814,7 @@ app.layout = html.Div(
                                                         html.H3("Your results will appear here", className="empty-state__title"),
                                                         html.P(
                                                             "Enter a composition and click Generate to see the structure, "
-                                                            "and optionally upload a PXRD CSV to preview the pattern.",
+                                                            "and optionally upload a peak-picked XRD file to preview the pattern.",
                                                             className="empty-state__subtitle",
                                                         ),
                                                         html.Div(
@@ -727,7 +841,7 @@ app.layout = html.Div(
                                                                         html.Div(
                                                                             [
                                                                                 html.Div("Optional constraints", className="empty-step__label"),
-                                                                                html.Div("Pick a space group and/or upload PXRD CSV", className="empty-step__hint"),
+                                                                                html.Div("Pick a space group and/or upload a peak-picked XRD file", className="empty-step__hint"),
                                                                             ],
                                                                             className="empty-step__text",
                                                                         ),
@@ -930,7 +1044,7 @@ app.layout = html.Div(
 # -----------------------------
 # Client-side helpers
 # -----------------------------
-# 1) Ensure click handler is attached (disables button, starts progress)
+# 1) Attach the client-side click handler that disables the button and starts progress.
 app.clientside_callback(
     """
     function(data) {
@@ -944,8 +1058,8 @@ app.clientside_callback(
     Input("dummy-store", "data"),
 )
 
-# 2) Re-enable the button when server sets button-control-store back to 0
-#    IMPORTANT: output to ui-signal to avoid duplicate output on button-control-store
+# 2) Re-enable the button when the server resets button-control-store to 0.
+#    The ui-signal store prevents duplicate-output conflicts on button-control-store.
 app.clientside_callback(
     """
     function(data) {
@@ -960,8 +1074,8 @@ app.clientside_callback(
 )
 
 
-# Progress bar: determinate fill (client-side)
-# progress-active: 0=hidden, 1=running, 2=done (shown at 100% until next run)
+# Progress bar state is managed client-side.
+# progress-active: 0=hidden, 1=running, 2=complete (held at 100% until the next run).
 app.clientside_callback(
     """
     function(n_clicks, done_signal, n_intervals, active, value) {
@@ -1025,7 +1139,7 @@ app.clientside_callback(
     Input("progress-value", "data"),
 )
 
-# 3) When viewer is shown, force a resize so the VTK canvas becomes interactive
+# 3) Trigger a resize event when the structure viewer becomes visible.
 app.clientside_callback(
     """
     function(style) {
@@ -1040,7 +1154,7 @@ app.clientside_callback(
     Input("viewer-container", "style"),
 )
 
-# 4) When PXRD preview is shown, force a resize so Plotly can re-layout reliably
+# 4) Trigger a resize event when the PXRD preview becomes visible.
 app.clientside_callback(
     """
     function(style) {
@@ -1073,17 +1187,13 @@ app.clientside_callback(
 def handle_pxrd_upload(contents, clear_clicks, filename, current_store):
     trig = getattr(dash, "ctx", None).triggered_id if hasattr(dash, "ctx") else None
 
-    # ---- Clear/remove clicked ----
+    # Remove the currently selected diffraction file.
     if trig == "pxrd-clear":
-        # best-effort: delete stored file
         try:
             if current_store and current_store.get("host_path"):
-                p = Path(current_store["host_path"])
-                if p.exists():
-                    p.unlink()
-        except Exception:
-            pass
-
+                Path(current_store["host_path"]).unlink(missing_ok=True)
+        except Exception as e:
+            logger.warning(f"Failed removing cleared PXRD file: {e}")
         return (
             None,                  # pxrd-store
             "",                    # pxrd-status
@@ -1091,12 +1201,12 @@ def handle_pxrd_upload(contents, clear_clicks, filename, current_store):
             [make_pxrd_upload()],  # remount upload (lets user re-upload same file)
         )
 
-    # ---- Upload changed ----
+    # Handle a newly uploaded diffraction file.
     if not contents:
         return None, "", {"display": "none"}, dash.no_update
 
-    if not filename or not filename.lower().endswith(".csv"):
-        return None, html.Span("Please upload a .csv file.", className="error-message"), {"display": "none"}, dash.no_update
+    if not filename or not filename.lower().endswith(ALLOWED_XRD_EXTENSIONS):
+        return None, html.Span("Please upload a .csv, .xy, .dat, or .txt file.", className="error-message"), {"display": "none"}, dash.no_update
 
     try:
         _header, b64data = contents.split(",", 1)
@@ -1105,37 +1215,42 @@ def handle_pxrd_upload(contents, clear_clicks, filename, current_store):
         logger.exception(f"PXRD decode failed: {e}")
         return None, html.Span("Could not decode uploaded file.", className="error-message"), {"display": "none"}, dash.no_update
 
-    upload_id = uuid.uuid4().hex
     safe_name = re.sub(r"[^a-zA-Z0-9_.-]+", "_", filename)
-    host_path = UPLOADS_DIR / f"{upload_id}_{safe_name}"
-    container_path = f"/app/data/uploads/{host_path.name}"
+    stored_name = f"{uuid.uuid4().hex}_{safe_name}"
+    host_path = UPLOADS_DIR / stored_name
+    container_path = f"/app/data/uploads/{stored_name}"
 
-    try:
-        host_path.write_bytes(raw)
-    except Exception as e:
-        logger.exception(f"PXRD save failed: {e}")
-        return None, html.Span("Could not save uploaded file.", className="error-message"), {"display": "none"}, dash.no_update
-
-    # Parse once for UI preview + lightweight validation
+    # Parse once for preview generation and lightweight validation.
     preview = None
     warnings = []
     try:
         preview = pxrd_preview_from_bytes(raw)
         try:
             if (preview["theta_min"] < 0) or (preview["theta_max"] > 90):
-                warnings.append("2θ values should be within 0–90.")
+                warnings.append("2θ values are usually expected to fall within 0–90° for this interface.")
             raw_intensity = preview.get("intensity", [])
             if raw_intensity and ((min(raw_intensity) < 0) or (max(raw_intensity) > 100)):
-                warnings.append("Intensity values should be within 0–100.")
+                warnings.append("Intensity values are typically expected to be non-negative and commonly normalized.")
         except Exception:
             pass
     except Exception as e:
         warnings.append(f"Preview/validation warning: {e}")
 
+    try:
+        host_path.write_bytes(raw)
+    except Exception as e:
+        logger.exception(f"Failed saving PXRD upload to shared storage: {e}")
+        return None, html.Span(
+            "Could not save the uploaded XRD file into the shared data directory. "
+            "Check that /app/data/uploads exists and is writable.",
+            className="error-message",
+        ), {"display": "none"}, dash.no_update
+
     store = {
+        "filename": safe_name,
+        "stored_name": stored_name,
         "host_path": str(host_path),
         "container_path": container_path,
-        "filename": filename,
         "preview": preview,
     }
 
@@ -1192,9 +1307,9 @@ def update_pxrd_preview(pxrd_data):
     preview = (pxrd_data or {}).get("preview")
     if not preview:
         try:
-            host_path = (pxrd_data or {}).get("host_path")
-            if host_path:
-                raw = Path(host_path).read_bytes()
+            content_b64 = (pxrd_data or {}).get("content_base64")
+            if content_b64:
+                raw = base64.b64decode(content_b64)
                 preview = pxrd_preview_from_bytes(raw)
         except Exception as e:
             msg = f"Preview unavailable: {e}"
@@ -1212,7 +1327,7 @@ def update_pxrd_preview(pxrd_data):
 
     fig = go.Figure()
 
-    # Render a typical PXRD "stick" plot: vertical lines at each 2θ value.
+    # Render a standard stick plot with vertical lines at each 2θ position.
     x_sticks = []
     y_sticks = []
     for xi, yi in zip(x, y):
@@ -1231,7 +1346,7 @@ def update_pxrd_preview(pxrd_data):
         )
     )
 
-    # Invisible markers for per-peak hover.
+    # Invisible markers provide per-peak hover labels.
     fig.add_trace(
         go.Scatter(
             x=x,
@@ -1269,6 +1384,29 @@ def update_pxrd_preview(pxrd_data):
 
     return XRD_SHOWN, fig, meta
 
+@app.callback(
+    Output("xrd-advanced-panel", "style"),
+    Output("xrd-advanced-toggle", "children"),
+    Input("xrd-advanced-toggle", "n_clicks"),
+)
+def toggle_xrd_advanced_panel(n_clicks):
+    """Toggle the optional XRD controls."""
+    is_open = bool(n_clicks and n_clicks % 2 == 1)
+    panel_style = {"display": "grid", "gap": "10px", "marginTop": "10px"} if is_open else {"display": "none"}
+    button_label = "Advanced XRD options ▴" if is_open else "Advanced XRD options ▾"
+    return panel_style, button_label
+
+
+@app.callback(
+    Output("xrd-wavelength-custom-wrap", "style"),
+    Input("xrd-wavelength", "value"),
+)
+def toggle_xrd_wavelength_custom(selection):
+    if selection == "custom":
+        return {"display": "block", "marginTop": "10px"}
+    return {"display": "none", "marginTop": "10px"}
+
+
 # -----------------------------
 # Generate (single CIF)
 # -----------------------------
@@ -1288,14 +1426,15 @@ def update_pxrd_preview(pxrd_data):
     State("formula-unit", "value"),
     State("spacegroup", "value"),
     State("pxrd-store", "data"),
+    State("xrd-wavelength", "value"),
+    State("xrd-wavelength-custom", "value"),
     prevent_initial_call=True,
 )
-def generate_one_cif(n_clicks, composition_value, z_value, spacegroup_value, pxrd_data):
+def generate_one_cif(n_clicks, composition_value, z_value, spacegroup_value, pxrd_data, xrd_wavelength_selection, xrd_wavelength_custom):
     if not n_clicks:
         return "", "", None, "", True, 0, None, VIEWER_HIDDEN, str(n_clicks), ""
 
     def err(msg: str):
-        # IMPORTANT: clear CIF + viewer + download + preview so previous success disappears
         return (
             html.Div(msg, className="error-message"),  # result-container
             "",                                        # cell-parameters
@@ -1307,6 +1446,17 @@ def generate_one_cif(n_clicks, composition_value, z_value, spacegroup_value, pxr
             VIEWER_HIDDEN,                             # viewer style
             str(n_clicks),                             # gen-done-signal
             "",                                        # loading-sentinel
+        )
+
+    ip = request.headers.get("X-Forwarded-For", request.remote_addr)
+    logger.info(f"Generation request from IP: {ip}")
+
+    if not check_gen_rate_limit():
+        logger.warning(f"Rate limit exceeded for {ip}")
+        return err(
+            "You've reached the limit for how many generation requests can be made in a short time. "
+            "This helps keep the service responsive for everyone. "
+            "If you need higher-volume access for research or integration purposes, please contact us."
         )
 
     if not composition_value or not str(composition_value).strip():
@@ -1325,31 +1475,40 @@ def generate_one_cif(n_clicks, composition_value, z_value, spacegroup_value, pxr
         return err("Please enter a reduced formula (e.g., PbTe not Pb2Te2). Use Z to specify formula units per cell.")
 
     reduced_comp, _ = comp.get_reduced_composition_and_factor()
+    reduced_formula = str(reduced_comp.reduced_formula).replace(" ", "")
 
-    try:
-        z_int = int(z_value) if z_value else 1
-        if z_int < 1:
-            raise ValueError("Z must be >= 1")
-    except Exception:
-        return err("Z must be a positive integer.")
-
-    cell_comp = multiply_composition(reduced_comp, z_int)
-    comp_explicit = composition_to_explicit_stoich(cell_comp)
+    z_to_send = None
+    if z_value not in (None, ""):
+        try:
+            z_int = int(z_value)
+            if z_int < 1:
+                raise ValueError("Z must be >= 1")
+            z_to_send = str(z_int)
+        except Exception:
+            return err("Z must be a positive integer.")
 
     use_pxrd = pxrd_data is not None
 
+    xrd_wavelength = None
+    if use_pxrd:
+        try:
+            xrd_wavelength = parse_xrd_wavelength(xrd_wavelength_selection, xrd_wavelength_custom)
+        except Exception as e:
+            return err(str(e))
+
     try:
         cif_text = client.generate_cif(
-            composition_explicit=comp_explicit,
+            reduced_formula=reduced_formula,
+            z_value=z_to_send,
             spacegroup=spacegroup_value,
             pxrd_csv_container_path=(pxrd_data["container_path"] if use_pxrd else None),
+            xrd_wavelength=xrd_wavelength,
             num_return_sequences=1,
         )
     except ModelClientError as e:
         logger.exception(f"Model client error: {e}")
         user_component, _tech = format_model_client_error(e)
 
-        # IMPORTANT: clear CIF + viewer + download + preview so previous success disappears
         return (
             user_component,   # result-container
             "",               # cell-parameters
@@ -1366,14 +1525,14 @@ def generate_one_cif(n_clicks, composition_value, z_value, spacegroup_value, pxr
         logger.exception(f"Unexpected generation error: {e}")
         return err("Unexpected error while generating. Check app_logs.log for details.")
 
-    # Cell params (best-effort)
+    # Extract cell parameters for display when available.
     cell_params = ""
     try:
         cell_params = get_cell_params(cif_text)
     except Exception:
         cell_params = ""
 
-    # Parse structure for viewer (capture warnings; if parse fails show a warning box instead of viewer)
+    # Parse the generated structure for the viewer while collecting warnings.
     structure_obj = None
     viewer_style = VIEWER_HIDDEN
     parse_exc = None
@@ -1393,20 +1552,22 @@ def generate_one_cif(n_clicks, composition_value, z_value, spacegroup_value, pxr
 
     ok_msg = html.Div(
         [
-            html.Div("Success: generated CIF.", className="ok-message"),
+            html.Div("CIF generated successfully.", className="ok-message"),
             html.Div(
                 [
-                    "Sent to model: ",
-                    html.Code(comp_explicit),
+                    "Request summary: ",
+                    html.Code(reduced_formula),
+                    (" | Z=" + z_to_send) if z_to_send else " | Z=auto",
                     (" | spacegroup=" + str(spacegroup_value)) if spacegroup_value else "",
-                    (" | PXRD=" + pxrd_data["filename"]) if use_pxrd else "",
+                    (" | XRD=" + pxrd_data["filename"]) if use_pxrd else "",
+                    (f" | λ={xrd_wavelength:.5f} Å" if xrd_wavelength else " | λ=Cu Kα") if use_pxrd else "",
                 ],
                 className="help-text",
             ),
         ]
     )
 
-    # If viewer parsing failed, show a "Structure viewer unavailable" warning (with dropdown details)
+    # If parsing fails, show a warning and keep the CIF text available.
     cell_params_children = cell_params
     if viewer_style == VIEWER_HIDDEN:
         cause_line = _extract_last_exception_line(str(parse_exc)) if parse_exc else ""

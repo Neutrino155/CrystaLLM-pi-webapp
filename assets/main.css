@@ -1180,3 +1180,32 @@ span.icon {
   background: rgba(11,18,32,0.06);
   color: rgba(11,18,32,0.85);
 }
+
+.xrd-advanced-toggle {
+  align-self: flex-start;
+  width: auto;
+  margin-top: 4px;
+  padding: 10px 14px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0;
+  background: rgba(11, 45, 109, 0.05);
+  border: 1px solid rgba(11, 45, 109, 0.12);
+}
+
+.xrd-advanced-toggle:hover {
+  background: rgba(11, 45, 109, 0.08);
+}
+
+.xrd-advanced-panel {
+  margin-top: 10px;
+  padding: 14px;
+  border-radius: 14px;
+  border: 1px solid rgba(11, 45, 109, 0.1);
+  background: linear-gradient(180deg, rgba(11, 45, 109, 0.045), rgba(11, 45, 109, 0.015));
+}
+
+.xrd-advanced-panel label {
+  font-size: 12.5px;
+}
