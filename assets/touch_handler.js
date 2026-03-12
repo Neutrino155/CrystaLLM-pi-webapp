@@ -1,40 +1,78 @@
-// This is part of a workaround that enables easy rotation of the structure
-// in the StructureMoleculeComponent canvas on mobile/touchscreen devices.
+(function () {
+  function dispatchMouseEvent(target, type, touch) {
+    const event = new MouseEvent(type, {
+      bubbles: true,
+      cancelable: true,
+      view: window,
+      screenX: touch.screenX,
+      screenY: touch.screenY,
+      clientX: touch.clientX,
+      clientY: touch.clientY,
+      button: 0,
+      buttons: 1,
+    });
+    target.dispatchEvent(event);
+  }
 
-var hasRunBefore = false;
+  function bindCanvas(canvas) {
+    if (!canvas || canvas.dataset.touchBound === "1") {
+      return;
+    }
 
-function addTouchHandler() {
-    if (hasRunBefore) {
+    canvas.dataset.touchBound = "1";
+    canvas.classList.add("allow-touch");
+
+    const handler = function (event) {
+      if (!event.changedTouches || event.changedTouches.length !== 1) {
         return;
+      }
+
+      const touch = event.changedTouches[0];
+      const target = canvas;
+      const map = {
+        touchstart: "mousedown",
+        touchmove: "mousemove",
+        touchend: "mouseup",
+        touchcancel: "mouseup",
+      };
+
+      const mappedType = map[event.type];
+      if (!mappedType) {
+        return;
+      }
+
+      dispatchMouseEvent(target, mappedType, touch);
+      event.preventDefault();
+    };
+
+    canvas.addEventListener("touchstart", handler, { passive: false });
+    canvas.addEventListener("touchmove", handler, { passive: false });
+    canvas.addEventListener("touchend", handler, { passive: false });
+    canvas.addEventListener("touchcancel", handler, { passive: false });
+  }
+
+  function attachTouchHandler() {
+    const frame = document.querySelector("#structure-viewer canvas, .ctk-viewer-frame canvas");
+    if (frame) {
+      bindCanvas(frame);
     }
+  }
 
-    // Select the canvas and add the 'allow-touch' class
-    var canvas = document.querySelector('canvas');
-    canvas.classList.add('allow-touch');
+  const observer = new MutationObserver(function () {
+    attachTouchHandler();
+  });
 
-    function touchHandler(event) {
-        var touch = event.changedTouches[0];
+  function start() {
+    attachTouchHandler();
+    observer.observe(document.body, { childList: true, subtree: true });
+    window.addEventListener("resize", attachTouchHandler, { passive: true });
+  }
 
-        var simulatedEvent = document.createEvent("MouseEvent");
-            simulatedEvent.initMouseEvent({
-            touchstart: "mousedown",
-            touchmove: "mousemove",
-            touchend: "mouseup"
-        }[event.type], true, true, window, 1,
-            touch.screenX, touch.screenY,
-            touch.clientX, touch.clientY, false,
-            false, false, false, 0, null);
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", start);
+  } else {
+    start();
+  }
 
-        if(touch.target.classList.contains("allow-touch")){
-            touch.target.dispatchEvent(simulatedEvent);
-            event.preventDefault();
-        }
-    }
-
-    document.addEventListener("touchstart", touchHandler, true);
-    document.addEventListener("touchmove", touchHandler, true);
-    document.addEventListener("touchend", touchHandler, true);
-    document.addEventListener("touchcancel", touchHandler, true);
-
-    hasRunBefore = true;
-}
+  window.addTouchHandler = attachTouchHandler;
+})();

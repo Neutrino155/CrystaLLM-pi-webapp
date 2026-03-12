@@ -122,6 +122,7 @@ def get_cell_params(cif_str: str) -> str:
 # PXRD helpers (preview plot)
 # -----------------------------
 ALLOWED_XRD_EXTENSIONS = (".csv", ".xy", ".dat", ".txt")
+DEMO_XRD_SOURCE = ASSETS_DIR / "rutile_pxrd.csv"
 XRD_WAVELENGTH_OPTIONS = [
     {"label": "Cu Kα (default, 1.5406 Å)", "value": "default"},
     {"label": "Mo Kα (0.71073 Å)", "value": "0.71073"},
@@ -202,10 +203,43 @@ def parse_xrd_wavelength(selection: str, custom_value) -> float | None:
     return value
 
 
+def save_xrd_file(raw: bytes, filename: str) -> tuple[dict, list[str]]:
+    """Save a diffraction file to shared storage and prepare preview metadata."""
+    safe_name = re.sub(r"[^a-zA-Z0-9_.-]+", "_", filename)
+    stored_name = f"{uuid.uuid4().hex}_{safe_name}"
+    host_path = UPLOADS_DIR / stored_name
+    container_path = f"/app/data/uploads/{stored_name}"
+
+    preview = None
+    warnings: list[str] = []
+    try:
+        preview = pxrd_preview_from_bytes(raw)
+        try:
+            if (preview["theta_min"] < 0) or (preview["theta_max"] > 90):
+                warnings.append("2θ values are usually expected to fall within 0–90° for this interface.")
+            raw_intensity = preview.get("intensity", [])
+            if raw_intensity and ((min(raw_intensity) < 0) or (max(raw_intensity) > 100)):
+                warnings.append("Intensity values are typically expected to be non-negative and commonly normalized.")
+        except Exception:
+            pass
+    except Exception as e:
+        warnings.append(f"Preview/validation warning: {e}")
+
+    host_path.write_bytes(raw)
+
+    return ({
+        "filename": safe_name,
+        "stored_name": stored_name,
+        "host_path": str(host_path),
+        "container_path": container_path,
+        "preview": preview,
+    }, warnings)
+
+
 def make_pxrd_upload():
     return dcc.Upload(
         id="pxrd-upload",
-        children=html.Div(["Drag and drop XRD file, or ", html.A("browse")]),
+        children=html.Div(["Drag and drop a peak-picked XRD file here, or ", html.A("browse")]),
         className="upload-box",
         multiple=False,
         accept=",".join(ALLOWED_XRD_EXTENSIONS),
@@ -550,7 +584,7 @@ def header():
                 children=[
                     html.A(
                         href="/usage",
-                        children=[html.Div("Usage Guide")],
+                        children=[html.Div("Guide")],
                     ),
                     html.A(
                         href="https://github.com/C-Bone-UCL/CrystaLLM-pi",
@@ -864,12 +898,28 @@ app.layout = html.Div(
                                                             ],
                                                         ),
                                                         html.Div(
-                                                            className="empty-state__examples",
+                                                            className="empty-state__examples-bar",
                                                             children=[
-                                                                html.Span("Try:", className="empty-state__examples-label"),
-                                                                html.Code("TiO2", className="empty-state__chip"),
-                                                                html.Code("CsPbI3", className="empty-state__chip"),
-                                                                html.Code("Bi2Se3", className="empty-state__chip"),
+                                                                html.Div(
+                                                                    className="empty-state__examples",
+                                                                    children=[
+                                                                        html.Span("Try:", className="empty-state__examples-label"),
+                                                                        html.Button(
+                                                                            "CsPbI3",
+                                                                            id="quick-fill-cspbi3",
+                                                                            n_clicks=0,
+                                                                            className="empty-state__chip-button",
+                                                                            type="button",
+                                                                        ),
+                                                                        html.Button(
+                                                                            "TiO2 rutile",
+                                                                            id="quick-demo-rutile",
+                                                                            n_clicks=0,
+                                                                            className="empty-state__chip-button empty-state__chip-button--demo",
+                                                                            type="button",
+                                                                        ),
+                                                                    ],
+                                                                ),
                                                             ],
                                                         ),
                                                     ],
@@ -1180,11 +1230,12 @@ app.clientside_callback(
     Output("pxrd-upload-wrapper", "children"),
     Input("pxrd-upload", "contents"),
     Input("pxrd-clear", "n_clicks"),
+    Input("quick-demo-rutile", "n_clicks"),
     State("pxrd-upload", "filename"),
     State("pxrd-store", "data"),
     prevent_initial_call=True,
 )
-def handle_pxrd_upload(contents, clear_clicks, filename, current_store):
+def handle_pxrd_upload(contents, clear_clicks, rutile_demo_clicks, filename, current_store):
     trig = getattr(dash, "ctx", None).triggered_id if hasattr(dash, "ctx") else None
 
     # Remove the currently selected diffraction file.
@@ -1201,6 +1252,35 @@ def handle_pxrd_upload(contents, clear_clicks, filename, current_store):
             [make_pxrd_upload()],  # remount upload (lets user re-upload same file)
         )
 
+    # Replace any previously stored file before saving a new selection.
+    if current_store and current_store.get("host_path"):
+        try:
+            Path(current_store["host_path"]).unlink(missing_ok=True)
+        except Exception as e:
+            logger.warning(f"Failed removing previous PXRD file: {e}")
+
+    if trig == "quick-demo-rutile":
+        try:
+            raw = DEMO_XRD_SOURCE.read_bytes()
+            store, warnings = save_xrd_file(raw, "rutile_pxrd.csv")
+        except Exception as e:
+            logger.exception(f"Failed preparing demo PXRD file: {e}")
+            return None, html.Span("Could not load the demo XRD file.", className="error-message"), {"display": "none"}, dash.no_update
+
+        status_children = [
+            html.Div("Demo loaded: TiO2 rutile", className="pxrd-pill pxrd-pill--ok"),
+            html.Div("TiO2 has been selected automatically.", className="help-text", style={"marginTop": "6px"}),
+        ]
+        if warnings:
+            status_children.append(html.Div(" ".join(warnings), className="help-text", style={"marginTop": "6px"}))
+
+        return (
+            store,
+            status_children,
+            {"display": "inline-flex"},
+            dash.no_update,
+        )
+
     # Handle a newly uploaded diffraction file.
     if not contents:
         return None, "", {"display": "none"}, dash.no_update
@@ -1215,29 +1295,8 @@ def handle_pxrd_upload(contents, clear_clicks, filename, current_store):
         logger.exception(f"PXRD decode failed: {e}")
         return None, html.Span("Could not decode uploaded file.", className="error-message"), {"display": "none"}, dash.no_update
 
-    safe_name = re.sub(r"[^a-zA-Z0-9_.-]+", "_", filename)
-    stored_name = f"{uuid.uuid4().hex}_{safe_name}"
-    host_path = UPLOADS_DIR / stored_name
-    container_path = f"/app/data/uploads/{stored_name}"
-
-    # Parse once for preview generation and lightweight validation.
-    preview = None
-    warnings = []
     try:
-        preview = pxrd_preview_from_bytes(raw)
-        try:
-            if (preview["theta_min"] < 0) or (preview["theta_max"] > 90):
-                warnings.append("2θ values are usually expected to fall within 0–90° for this interface.")
-            raw_intensity = preview.get("intensity", [])
-            if raw_intensity and ((min(raw_intensity) < 0) or (max(raw_intensity) > 100)):
-                warnings.append("Intensity values are typically expected to be non-negative and commonly normalized.")
-        except Exception:
-            pass
-    except Exception as e:
-        warnings.append(f"Preview/validation warning: {e}")
-
-    try:
-        host_path.write_bytes(raw)
+        store, warnings = save_xrd_file(raw, filename)
     except Exception as e:
         logger.exception(f"Failed saving PXRD upload to shared storage: {e}")
         return None, html.Span(
@@ -1245,14 +1304,6 @@ def handle_pxrd_upload(contents, clear_clicks, filename, current_store):
             "Check that /app/data/uploads exists and is writable.",
             className="error-message",
         ), {"display": "none"}, dash.no_update
-
-    store = {
-        "filename": safe_name,
-        "stored_name": stored_name,
-        "host_path": str(host_path),
-        "container_path": container_path,
-        "preview": preview,
-    }
 
     badge_kind = "warn" if warnings else "ok"
     status_children = [
@@ -1405,6 +1456,23 @@ def toggle_xrd_wavelength_custom(selection):
     if selection == "custom":
         return {"display": "block", "marginTop": "10px"}
     return {"display": "none", "marginTop": "10px"}
+
+
+@app.callback(
+    Output("composition", "value"),
+    Input("quick-fill-cspbi3", "n_clicks"),
+    Input("quick-demo-rutile", "n_clicks"),
+    State("composition", "value"),
+    prevent_initial_call=True,
+)
+def set_composition_from_examples(cspbi3_clicks, rutile_demo_clicks, current_value):
+    trig = getattr(dash, "ctx", None).triggered_id if hasattr(dash, "ctx") else None
+
+    if trig == "quick-fill-cspbi3":
+        return "CsPbI3"
+    if trig == "quick-demo-rutile":
+        return "TiO2"
+    return current_value
 
 
 # -----------------------------

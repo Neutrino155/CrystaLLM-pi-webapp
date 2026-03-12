@@ -6,6 +6,7 @@ The application provides a browser UI for:
 - entering a composition, optional `Z`, and optional space group
 - uploading a peak-picked X-ray diffraction file for conditioned generation
 - specifying an optional X-ray wavelength when the data were collected with a source other than Cu Kα
+- loading a bundled TiO2 rutile demo pattern for quick testing
 - submitting generation jobs to a remote CrystaLLM-pi API
 - visualising the generated structure and downloading the resulting CIF
 
@@ -158,6 +159,13 @@ Upload a **peak-picked two-column pattern** containing:
 - intensity
 
 The web interface does not perform raw diffraction data processing.
+
+A bundled demo pattern is available in the XRD section for the rutile TiO2 example.
+
+### Demo pattern
+The XRD section includes a **Load TiO2 rutile demo** button. This loads a bundled peak-picked pattern into the workflow and is useful for testing the interface without preparing your own diffraction file.
+
+When using the demo pattern, enter **TiO2** as the composition.
 
 ### X-ray wavelength
 The wavelength control is optional and is available under **Advanced XRD options** in the upload section. The default setting is **Cu Kα (1.5406 Å)**.
