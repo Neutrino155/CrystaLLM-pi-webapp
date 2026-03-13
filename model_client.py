@@ -224,7 +224,7 @@ class CrystaLLMPiApiClient:
         pxrd_csv_container_path: Optional[str],
         xrd_wavelength: Optional[float] = None,
         num_return_sequences: int = 1,
-        max_return_attempts: int = 3,
+        max_return_attempts: int = 5,
     ) -> str:
         use_pxrd = bool(pxrd_csv_container_path)
         model_id = self.cfg.model_pxrd if use_pxrd else self.cfg.model_base
@@ -242,6 +242,7 @@ class CrystaLLMPiApiClient:
             "max_return_attempts": int(max_return_attempts),
             "scoring_mode": "LOGP",
             "target_valid_cifs": 1,
+            "temperature": 1.0,
         }
 
         if z_value:
@@ -296,7 +297,7 @@ def get_model_client() -> CrystaLLMPiApiClient:
         poll_interval_s=_env_float("CRYSTALLM_PI_POLL_INTERVAL_S", 1.0),
         shared_outputs_dir=Path(os.getenv("CRYSTALLM_PI_SHARED_OUTPUTS_DIR", "/app/outputs")).resolve(),
         model_base=os.getenv("CRYSTALLM_PI_MODEL_BASE", "c-bone/CrystaLLM-pi_base"),
-        model_pxrd=os.getenv("CRYSTALLM_PI_MODEL_PXRD", "c-bone/CrystaLLM-pi_COD-XRD"),
+        model_pxrd=os.getenv("CRYSTALLM_PI_MODEL_PXRD", "c-bone/CrystaLLM-pi_Mattergen-XRD"),
         enable_postprocess=_env_bool("CRYSTALLM_PI_ENABLE_POSTPROCESS", True),
         postprocess_strict=_env_bool("CRYSTALLM_PI_POSTPROCESS_STRICT", True),
     )
