@@ -11,6 +11,8 @@ services:
       CRYSTALLM_PI_SHARED_OUTPUTS_DIR: /app/outputs
       RATE_LIMIT_STORAGE_URI: redis://redis:6379/0
       RATE_LIMIT_RULE: ${RATE_LIMIT_RULE:-5/minute;30/hour;100/day}
+      CRYSTALLM_PI_REQUEST_TIMEOUT_S: ${CRYSTALLM_PI_REQUEST_TIMEOUT_S:-95}
+      CRYSTALLM_PI_POLL_TIMEOUT_S: ${CRYSTALLM_PI_POLL_TIMEOUT_S:-90}
       APP_LOG_PATH: /app/logs/app_logs.log
     volumes:
       - ${WEBAPP_SHARED_DATA_HOST_DIR:-./data}:/app/data

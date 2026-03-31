@@ -153,8 +153,8 @@ class CrystaLLMPiApiClient:
             )
         return data
 
-    def _wait_for_output_parquet(self, parquet_path: Path) -> None:
-        deadline = time.time() + self.cfg.poll_timeout_s
+    def _wait_for_output_parquet(self, parquet_path: Path, deadline: Optional[float] = None) -> None:
+        deadline = deadline if deadline is not None else (time.time() + self.cfg.poll_timeout_s)
         last_size = -1
 
         while time.time() < deadline:
@@ -170,11 +170,13 @@ class CrystaLLMPiApiClient:
 
         raise ModelClientError(
             f"Timed out waiting for output parquet: {parquet_path}. "
-            f"Confirm the webapp and API both mount the same shared outputs directory at /app/outputs."
+            f"CrystaLLM-pi did not produce a result before the timeout. "
+            f"Please try again with less conditions or on a simpler composition. "
+            f"If this keeps happening, contact support@psdi.ac.uk."
         )
 
-    def _poll_job(self, job_id: str) -> Optional[Dict[str, Any]]:
-        deadline = time.time() + self.cfg.poll_timeout_s
+    def _poll_job(self, job_id: str, deadline: Optional[float] = None) -> Optional[Dict[str, Any]]:
+        deadline = deadline if deadline is not None else (time.time() + self.cfg.poll_timeout_s)
         last_status: Optional[Dict[str, Any]] = None
 
         while time.time() < deadline:
@@ -206,7 +208,7 @@ class CrystaLLMPiApiClient:
             raise ModelClientError(f"Failed reading output parquet {parquet_path}: {e}")
         return _find_cif_in_parquet(df)
 
-    def postprocess_parquet(self, input_parquet_container: str, output_parquet_container: str) -> None:
+    def postprocess_parquet(self, input_parquet_container: str, output_parquet_container: str, deadline: Optional[float] = None) -> None:
         payload = {
             "input_parquet": input_parquet_container,
             "output_parquet": output_parquet_container,
@@ -214,7 +216,7 @@ class CrystaLLMPiApiClient:
         resp = self._post_json("/generate/postprocess", payload)
         returned_job = resp.get("job_id") or resp.get("id")
         if returned_job:
-            self._poll_job(str(returned_job))
+            self._poll_job(str(returned_job), deadline=deadline)
 
     def generate_cif(
         self,
@@ -228,6 +230,7 @@ class CrystaLLMPiApiClient:
     ) -> str:
         use_pxrd = bool(pxrd_csv_container_path)
         model_id = self.cfg.model_pxrd if use_pxrd else self.cfg.model_base
+        deadline = time.time() + self.cfg.poll_timeout_s
 
         request_id = uuid.uuid4().hex
         output_parquet_container = f"/app/outputs/{request_id}.parquet"
@@ -240,7 +243,7 @@ class CrystaLLMPiApiClient:
             "reduced_formula_list": reduced_formula,
             "num_return_sequences": int(num_return_sequences),
             "max_return_attempts": int(max_return_attempts),
-            "scoring_mode": "LOGP",
+            "scoring_mode": "logp",
             "target_valid_cifs": 1,
             "temperature": 1.0,
         }
@@ -264,9 +267,9 @@ class CrystaLLMPiApiClient:
         resp = self._post_json("/generate/direct", payload)
         returned_job = resp.get("job_id") or resp.get("id")
         if returned_job:
-            self._poll_job(str(returned_job))
+            self._poll_job(str(returned_job), deadline=deadline)
 
-        self._wait_for_output_parquet(output_parquet_path)
+        self._wait_for_output_parquet(output_parquet_path, deadline=deadline)
         cif_raw = self._read_cif_from_parquet(output_parquet_path)
 
         if self.cfg.enable_postprocess:
@@ -278,8 +281,9 @@ class CrystaLLMPiApiClient:
                 self.postprocess_parquet(
                     input_parquet_container=output_parquet_container,
                     output_parquet_container=post_parquet_container,
+                    deadline=deadline,
                 )
-                self._wait_for_output_parquet(post_parquet_path)
+                self._wait_for_output_parquet(post_parquet_path, deadline=deadline)
                 return self._read_cif_from_parquet(post_parquet_path)
             except Exception as e:
                 if self.cfg.postprocess_strict:
@@ -292,11 +296,11 @@ class CrystaLLMPiApiClient:
 def get_model_client() -> CrystaLLMPiApiClient:
     cfg = CrystaLLMPiClientConfig(
         api_url=os.getenv("CRYSTALLM_PI_API_URL", "http://localhost:8000"),
-        request_timeout_s=_env_int("CRYSTALLM_PI_REQUEST_TIMEOUT_S", 180),
-        poll_timeout_s=_env_int("CRYSTALLM_PI_POLL_TIMEOUT_S", 300),
+        request_timeout_s=_env_int("CRYSTALLM_PI_REQUEST_TIMEOUT_S", 95),
+        poll_timeout_s=_env_int("CRYSTALLM_PI_POLL_TIMEOUT_S", 90),
         poll_interval_s=_env_float("CRYSTALLM_PI_POLL_INTERVAL_S", 1.0),
         shared_outputs_dir=Path(os.getenv("CRYSTALLM_PI_SHARED_OUTPUTS_DIR", "/app/outputs")).resolve(),
-        model_base=os.getenv("CRYSTALLM_PI_MODEL_BASE", "c-bone/CrystaLLM-pi_base"),
+        model_base=os.getenv("CRYSTALLM_PI_MODEL_BASE", "c-bone/CrystaLLM-pi_Mattergen-XRD"),
         model_pxrd=os.getenv("CRYSTALLM_PI_MODEL_PXRD", "c-bone/CrystaLLM-pi_Mattergen-XRD"),
         enable_postprocess=_env_bool("CRYSTALLM_PI_ENABLE_POSTPROCESS", True),
         postprocess_strict=_env_bool("CRYSTALLM_PI_POSTPROCESS_STRICT", True),

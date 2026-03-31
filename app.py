@@ -76,7 +76,7 @@ def ensure_assets_present():
         src = APP_DIR / name
         dst = ASSETS_DIR / name
         try:
-            if src.exists() and not dst.exists():
+            if src.exists():
                 shutil.copyfile(src, dst)
         except Exception as e:
             logger.warning(f"Failed copying asset {name}: {e}")
@@ -326,6 +326,25 @@ def _extract_last_exception_line(err_text: str) -> str:
     return lines[-1] if lines else ""
 
 
+
+
+def _sanitize_technical_text(text: str) -> str:
+    if not text:
+        return ""
+
+    cleaned = str(text)
+    cleaned = re.sub(r"/app/outputs/[^\s\n'\"]+", "<generated output file>", cleaned)
+    cleaned = re.sub(
+        r"Confirm the webapp and API both mount the same shared outputs directory at /app/outputs\.?",
+        "CrystaLLM-pi did not produce a result before the timeout. ",
+        "Please try again with less conditions or on a simpler composition. ",
+        "If this keeps happening, contact support@psdi.ac.uk.",
+        cleaned,
+        flags=re.IGNORECASE,
+    )
+    cleaned = re.sub(r"\s+", lambda m: "\n" if "\n" in m.group(0) else " ", cleaned)
+    return cleaned.strip()
+
 def format_model_client_error(e: Exception):
     """
     Returns: (user_facing_component, technical_details_dict)
@@ -353,7 +372,10 @@ def format_model_client_error(e: Exception):
     else:
         err_text = raw
 
-    last_line = _extract_last_exception_line(err_text or "")
+    err_text = _sanitize_technical_text(err_text or "")
+    cmd = _sanitize_technical_text(cmd or "")
+    stdout_hint = _sanitize_technical_text(stdout_hint or "")
+    last_line = _sanitize_technical_text(_extract_last_exception_line(err_text or ""))
 
     # Map common failure patterns -> friendlier copy
     tips = [
@@ -371,6 +393,14 @@ def format_model_client_error(e: Exception):
             "Re-upload the XRD file and try again.",
             "Try again without XRD to isolate the issue.",
         ] + tips
+    elif "Timed out waiting for output parquet" in (err_text or "") or "Timed out waiting for job" in (err_text or ""):
+        friendly_cause = "Generation timed out before a CIF could be returned."
+        tips = [
+            "Try again.",
+            "Try changing or removing the space group.",
+            "Try again without XRD or with fewer constraints.",
+            "If this keeps happening, contact support@psdi.ac.uk.",
+        ]
     elif "Column 'Generated CIF' not found" in (err_text or "") or "Generated CIF" in (last_line or ""):
         friendly_cause = (
             "No valid CIF could be produced for this request."
@@ -623,8 +653,6 @@ app.layout = html.Div(
                     id="xrd-resize-ping",
                     data=0,  # Client-side resize signal.
                 ),
-                dcc.Store(id="progress-active", data=0),
-                dcc.Store(id="progress-value", data=0),
                 dcc.Store(id="gen-done-signal", data=""),
                 html.Div(id="loading-sentinel", style={"display": "none"}),
                 dcc.Store(
@@ -802,7 +830,7 @@ app.layout = html.Div(
                                 ),
                                 dcc.Interval(
                                     id="progress-interval",
-                                    interval=200,
+                                    interval=100,
                                     disabled=True,
                                 ),
                                 html.Div(
@@ -822,7 +850,14 @@ app.layout = html.Div(
                                                     ],
                                                 )
                                             ],
-                                        )
+                                        ),
+                                        html.Div(
+                                            className="progress-meta",
+                                            children=[
+                                                html.Span("Preparing request…", id="progress-stage", className="progress-stage"),
+                                                html.Span("0%", id="progress-percent", className="progress-percent"),
+                                            ],
+                                        ),
                                     ],
                                     style={"display": "none"},
                                 ),
@@ -1073,6 +1108,13 @@ app.layout = html.Div(
                                     f"Copyright © {datetime.now().year} CrystaLLM-π",
                                     className="psdi-footer-copy",
                                 ),
+                                html.Div(
+                                    [
+                                        "Support: ",
+                                        html.A("support@psdi.ac.uk", href="mailto:support@psdi.ac.uk", className="psdi-footer-email"),
+                                    ],
+                                    className="psdi-footer-support",
+                                ),
                             ],
                         ),
                         html.A(
@@ -1124,72 +1166,21 @@ app.clientside_callback(
 )
 
 
-# Progress bar state is managed client-side.
-# progress-active: 0=hidden, 1=running, 2=complete (held at 100% until the next run).
+# 3) Keep the old Dash interval disabled; progress is driven directly in browser JS
+#    so it starts immediately on click and stops as soon as the response is applied.
 app.clientside_callback(
     """
-    function(n_clicks, done_signal, n_intervals, active, value) {
-        const ctx = dash_clientside.callback_context;
-        const trig = ctx && ctx.triggered_id;
-        const a = (active === undefined || active === null) ? 0 : active;
-        const v = (value === undefined || value === null) ? 0 : value;
-
-        if (trig === "submit-button") {
-            if (!n_clicks) { return [a, v]; }
-            return [1, 0];
-        }
-
-        if (trig === "gen-done-signal") {
-            if (!done_signal) { return [a, v]; }
-            return [2, 100];
-        }
-
-        if (trig === "progress-interval") {
-            if (a !== 1) { return [a, v]; }
-            return [1, Math.min(95, v + 1)];
-        }
-
-        return [a, v];
-    }
-    """,
-    Output("progress-active", "data"),
-    Output("progress-value", "data"),
-    Input("submit-button", "n_clicks"),
-    Input("gen-done-signal", "data"),
-    Input("progress-interval", "n_intervals"),
-    State("progress-active", "data"),
-    State("progress-value", "data"),
-)
-
-app.clientside_callback(
-    """
-    function(active) {
-        if (active === 1) {
-            return [false, {"display": "block"}];
-        }
-        if (active === 2) {
-            return [true, {"display": "block"}];
-        }
-        return [true, {"display": "none"}];
+    function(n_clicks, done_signal, n_intervals) {
+        return true;
     }
     """,
     Output("progress-interval", "disabled"),
-    Output("progress", "style"),
-    Input("progress-active", "data"),
+    Input("submit-button", "n_clicks"),
+    Input("gen-done-signal", "data"),
+    Input("progress-interval", "n_intervals"),
 )
 
-app.clientside_callback(
-    """
-    function(value) {
-        const v = (value === undefined || value === null) ? 0 : value;
-        return {"width": v + "%"};
-    }
-    """,
-    Output("progress-bar-inner", "style"),
-    Input("progress-value", "data"),
-)
-
-# 3) Trigger a resize event when the structure viewer becomes visible.
+# 4) Trigger a resize event when the structure viewer becomes visible.
 app.clientside_callback(
     """
     function(style) {
@@ -1202,6 +1193,21 @@ app.clientside_callback(
     """,
     Output("viewer-resize-ping", "data"),
     Input("viewer-container", "style"),
+)
+
+# Clear stale scene selection whenever CTK rebuilds the scene data
+app.clientside_callback(
+    """
+    function(sceneData) {
+        if (sceneData === undefined) {
+            return window.dash_clientside.no_update;
+        }
+        return null;
+    }
+    """,
+    Output(structure_component.id("scene"), "selectedObject"),
+    Input(structure_component.id("scene"), "data"),
+    prevent_initial_call=True,
 )
 
 # 4) Trigger a resize event when the PXRD preview becomes visible.
@@ -1591,7 +1597,11 @@ def generate_one_cif(n_clicks, composition_value, z_value, spacegroup_value, pxr
         )
     except Exception as e:
         logger.exception(f"Unexpected generation error: {e}")
-        return err("Unexpected error while generating. Check app_logs.log for details.")
+        return err("Unexpected error while generating. Please refresh and try again.")
+
+    if not cif_text or not str(cif_text).strip():
+        logger.warning("Generation completed without returning CIF text.")
+        return err("Failed to generate a crystal structure for this input. Please try different constraints and try again.")
 
     # Extract cell parameters for display when available.
     cell_params = ""
@@ -1738,14 +1748,18 @@ def download_cif(n_clicks, cif_text, composition_value):
     Output("generated-panel", "style"),
     Input("pxrd-store", "data"),
     Input("cif-store", "data"),
-    Input("result-container", "children"), 
+    Input("result-container", "children"),
+    Input("submit-button", "n_clicks"),
+    Input("gen-done-signal", "data"),
 )
-def toggle_outputs(pxrd_data, cif_data, result_children):
+def toggle_outputs(pxrd_data, cif_data, result_children, n_clicks, done_signal):
     has_pxrd = pxrd_data is not None
     has_cif = bool(cif_data)
-
-    # show generated panel if we have *any* message there (success or error)
     has_result_msg = result_children not in (None, "", [], {})
+
+    pending = bool(n_clicks) and str(done_signal or "") != str(n_clicks)
+    if pending:
+        return {"display": "block"}, PANEL_HIDDEN, PANEL_HIDDEN
 
     empty_style = {"display": "none"} if (has_pxrd or has_cif or has_result_msg) else {"display": "block"}
     pxrd_style = PANEL_SHOWN if has_pxrd else PANEL_HIDDEN

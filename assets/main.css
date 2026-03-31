@@ -361,16 +361,13 @@ label {
 }
 
 .progress-bar-inner {
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  left: -40%;
-  width: 40%;
+  position: relative;
+  display: block;
+  height: 100%;
+  width: 0%;
   border-radius: 999px;
-  /* base color */
   background-image: linear-gradient(90deg, var(--psdi-teal), var(--psdi-blue), var(--psdi-magenta));
-  /* indeterminate slide */
-  animation: indeterminate-slide 1.35s ease-in-out infinite;
+  transition: width 240ms ease;
 }
 
 /* Add a subtle moving stripe overlay without wiping out the base gradient */
@@ -400,7 +397,7 @@ label {
 
 /* Progress bar secondary animation (stripes) */
 .progress-bar-inner.animated {
-  animation: indeterminate-slide 1.35s ease-in-out infinite, move-stripes 1.15s linear infinite;
+  animation: move-stripes 1.15s linear infinite;
 }
 
 @keyframes move-stripes {
@@ -409,13 +406,41 @@ label {
 }
 
 
-/* Show the progress bar while Dash is computing the generation callback */
-#loading-sentinel[data-dash-is-loading="true"] ~ #progress {
-  display: block !important;
+
+.progress-meta {
+  margin-top: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 12.5px;
+  color: rgba(11, 45, 109, 0.72);
 }
 
-#loading-sentinel[data-dash-is-loading="true"] ~ #progress .progress-bar-container {
-  box-shadow: 0 10px 22px rgba(11, 18, 32, 0.10);
+.progress-stage {
+  font-weight: 600;
+}
+
+.progress-percent {
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  color: rgba(11, 45, 109, 0.9);
+}
+
+.psdi-footer-support {
+  font-size: 12.5px;
+  color: rgba(255, 255, 255, 0.78);
+}
+
+.psdi-footer-email {
+  color: #ffffff;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.psdi-footer-email:hover {
+  color: #ffffff;
+  opacity: 0.88;
 }
 
 /* Outputs */
